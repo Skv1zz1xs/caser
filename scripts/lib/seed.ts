@@ -3,7 +3,7 @@
  * Используется: npm run gen:sql (пишет supabase/seed.sql), dev-стек и тесты БД.
  */
 import {
-  ACHIEVEMENTS, BATTLE, BATTLE_FORMATS, BATTLE_MODES, BONUS, COIN, COINFLIP, CONTRACT, LIMITS, PASS, PROMO_CODES, QUESTS, UPGRADE,
+  ACHIEVEMENTS, BATTLE, BATTLE_FORMATS, BATTLE_MODES, BONUS, COIN, COINFLIP, CONTRACT, LIMITS, PASS, PROMO_CODES, QUESTS, UPGRADE, WEAR,
 } from '../../src/config/economy'
 import { CATALOG } from '../../src/shared/catalog'
 import { FI_RANGE, ST_LIMIT, ST_MULT_PM, WEAR_A, WEAR_B, instancePrice } from '../../src/shared/money'
@@ -24,6 +24,7 @@ export function buildConfig(): Record<string, unknown> {
   })
   return {
     version: CATALOG.version,
+    wear_max: WEAR.map((w) => Math.round(w.max * FI_RANGE)),
     num: {
       wear_a: WEAR_A, wear_b: WEAR_B, fi_range: FI_RANGE, st_limit: ST_LIMIT, st_pm: ST_MULT_PM,
       up_edge: UPGRADE.edgePct * 10_000, up_min: UPGRADE.minPct * 10_000, up_max: UPGRADE.maxPct * 10_000, up_max_items: UPGRADE.maxItems,
