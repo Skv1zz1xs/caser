@@ -90,17 +90,18 @@ export const RISK_TABLES: Record<string, { rarity: number; pct: number; raw: num
 
 /** Бесплатный кейс: цены заданы прямо в монетах (без k). Жирный хвост — источник «залётов». */
 export const FREE_TABLE: { rarity: number; pct: number; coins: number }[] = [
-  { rarity: 0, pct: 30, coins: 15 },
-  { rarity: 0, pct: 25, coins: 30 },
-  { rarity: 1, pct: 16, coins: 60 },
-  { rarity: 1, pct: 10, coins: 110 },
-  { rarity: 2, pct: 8, coins: 220 },
-  { rarity: 2, pct: 5, coins: 400 },
-  { rarity: 3, pct: 3.2, coins: 800 },
-  { rarity: 4, pct: 1.8, coins: 2500 },
-  { rarity: 5, pct: 0.7, coins: 9000 },
-  { rarity: 6, pct: 0.25, coins: 40000 },
-  { rarity: 7, pct: 0.05, coins: 250000 },
+  { rarity: 0, pct: 30, coins: 10 },
+  { rarity: 0, pct: 25, coins: 20 },
+  { rarity: 1, pct: 16, coins: 40 },
+  { rarity: 1, pct: 10.14, coins: 80 },
+  { rarity: 2, pct: 8, coins: 150 },
+  { rarity: 2, pct: 5, coins: 300 },
+  { rarity: 3, pct: 3.2, coins: 600 },
+  { rarity: 4, pct: 1.8, coins: 1500 },
+  { rarity: 5, pct: 0.5, coins: 5000 },
+  { rarity: 6, pct: 0.15, coins: 25000 },
+  { rarity: 7, pct: 0.18, coins: 150000 },
+  { rarity: 7, pct: 0.03, coins: 1000000 },
 ]
 
 /* ----------------------------- КЕЙСЫ: ЦЕНА И RTP ------------------------- */
@@ -216,14 +217,16 @@ export const COINFLIP = { minStake: 10, maxStake: 10_000_000, rakePct: 4, flipMs
 export const BONUS = {
   /** стартовый баланс нового игрока */
   startBalance: 1000,
+  /** сдвиг «игровых суток» от UTC в часах (3 = сутки и недели меняются в полночь по Москве) */
+  dayOffsetHours: 3,
   /** бесплатный кейс: раз в cooldownMin минут */
   freeCase: { cooldownMin: 10 },
   /** ежедневный бонус: rewards[день стрика], стрик сгорает через resetHours */
-  daily: { cooldownHours: 20, resetHours: 48, rewards: [1200, 1500, 2000, 2500, 3000, 4000, 6000] },
+  daily: { cooldownHours: 20, resetHours: 48, rewards: [1000, 1200, 1500, 2000, 2500, 3000, 5000] },
   /** второй шанс: если баланс + инвентарь < maxNetWorth, раз в cooldownMin минут даём amount */
   secondChance: { amount: 400, cooldownMin: 15, maxNetWorth: 30 },
   /** дождь в чате: раз в everyMin минут банк pot делится между нажавшими, не больше maxShare на игрока */
-  rain: { everyMin: 20, durationSec: 90, pot: 2400, maxShare: 800 },
+  rain: { everyMin: 20, durationSec: 90, pot: 1000, maxShare: 500 },
 }
 
 /* ----------------------------- БАТЛ-ПАСС --------------------------------- */
@@ -235,17 +238,17 @@ export const PASS = {
   /** XP за действия */
   xp: { open: 5, upgrade: 8, contract: 12, battle: 20, coinflip: 6 },
   /** XP на уровень N (с 1): base + step × (N − 1) */
-  levelXp: { base: 100, step: 15 },
+  levelXp: { base: 150, step: 30 },
   /** Награды по уровням (40 уровней). case: [id кейса, сколько бесплатных открытий]. */
   rewards: [
-    { coins: 200 }, { case: ['sigma', 2] }, { coins: 300 }, { case: ['gta', 2] }, { coins: 600 },
-    { case: ['r5050', 1] }, { coins: 400 }, { case: ['dota', 2] }, { coins: 500 }, { coins: 1500, case: ['klinok', 1] },
-    { coins: 600 }, { case: ['session', 2] }, { coins: 700 }, { case: ['onepct', 5] }, { coins: 2000 },
-    { case: ['it', 2] }, { coins: 900 }, { case: ['allin', 1] }, { coins: 1000 }, { coins: 4000, case: ['piraty', 2] },
-    { coins: 1200 }, { case: ['neon', 2] }, { coins: 1400 }, { case: ['kosmos', 2] }, { coins: 5000 },
-    { case: ['mafia', 1] }, { coins: 1800 }, { case: ['ruletka', 1] }, { coins: 2000 }, { coins: 8000, case: ['drakon', 2] },
-    { coins: 2500 }, { case: ['stal', 1] }, { coins: 3000 }, { case: ['olimp', 1] }, { coins: 10000 },
-    { case: ['barhat', 1] }, { coins: 4000 }, { case: ['faraon', 1] }, { coins: 5000 }, { coins: 25000, case: ['platina', 1] },
+    { coins: 100 }, { case: ['sigma', 2] }, { coins: 150 }, { case: ['gta', 2] }, { coins: 300 },
+    { case: ['r5050', 1] }, { coins: 200 }, { case: ['dota', 2] }, { coins: 250 }, { coins: 750, case: ['klinok', 1] },
+    { coins: 300 }, { case: ['session', 2] }, { coins: 350 }, { case: ['onepct', 5] }, { coins: 1000 },
+    { case: ['it', 2] }, { coins: 450 }, { case: ['allin', 1] }, { coins: 500 }, { coins: 2000, case: ['piraty', 2] },
+    { coins: 600 }, { case: ['neon', 2] }, { coins: 700 }, { case: ['kosmos', 2] }, { coins: 2500 },
+    { case: ['mafia', 1] }, { coins: 900 }, { case: ['ruletka', 1] }, { coins: 1000 }, { coins: 4000, case: ['drakon', 2] },
+    { coins: 1250 }, { case: ['stal', 1] }, { coins: 1500 }, { case: ['olimp', 1] }, { coins: 5000 },
+    { case: ['barhat', 1] }, { coins: 2000 }, { case: ['faraon', 1] }, { coins: 2500 }, { coins: 12500, case: ['platina', 1] },
   ] as LevelReward[],
 }
 
@@ -262,12 +265,12 @@ export const QUESTS: { id: string; period: 'day' | 'week'; title: string; metric
   { id: 'd_contract', period: 'day', title: 'Подпиши 2 контракта', metric: 'contracts', goal: 2, coins: 250, xp: 120 },
   { id: 'd_battle', period: 'day', title: 'Сыграй 3 батла', metric: 'battles', goal: 3, coins: 300, xp: 150 },
   { id: 'd_x10', period: 'day', title: 'Выбей дроп x10 и выше', metric: 'x10', goal: 1, coins: 500, xp: 200 },
-  { id: 'w_open', period: 'week', title: 'Открой 300 кейсов', metric: 'opened', goal: 300, coins: 2500, xp: 600 },
-  { id: 'w_spent', period: 'week', title: 'Потрать 50 000 монет', metric: 'spent', goal: 50_000, coins: 4000, xp: 800 },
+  { id: 'w_open', period: 'week', title: 'Открой 1 000 кейсов', metric: 'opened', goal: 1000, coins: 2500, xp: 600 },
+  { id: 'w_spent', period: 'week', title: 'Потрать 250 000 монет', metric: 'spent', goal: 250_000, coins: 4000, xp: 800 },
   { id: 'w_upwin', period: 'week', title: 'Выиграй 15 апгрейдов', metric: 'upgrade_wins', goal: 15, coins: 2500, xp: 600 },
   { id: 'w_contract', period: 'week', title: 'Подпиши 15 контрактов', metric: 'contracts', goal: 15, coins: 2000, xp: 500 },
   { id: 'w_bwin', period: 'week', title: 'Выиграй 10 батлов', metric: 'battle_wins', goal: 10, coins: 3000, xp: 700 },
-  { id: 'w_special', period: 'week', title: 'Выбей нож или перчатки', metric: 'specials', goal: 1, coins: 5000, xp: 1000 },
+  { id: 'w_special', period: 'week', title: 'Выбей нож или перчатки', metric: 'specials', goal: 1, coins: 1500, xp: 1000 },
 ]
 
 /* ----------------------------- ДОСТИЖЕНИЯ -------------------------------- */
@@ -277,35 +280,35 @@ export const QUESTS: { id: string; period: 'day' | 'week'; title: string; metric
  * gems, novas, contrabands, lucky_ups (апгрейды с шансом ≤ 5 %), second_chances, rains, coinflip_wins.
  */
 export const ACHIEVEMENTS: { id: string; title: string; desc: string; metric: string; goal: number; coins: number }[] = [
-  { id: 'open10', title: 'Первые шаги', desc: 'Открой 10 кейсов', metric: 'opened', goal: 10, coins: 100 },
-  { id: 'open100', title: 'Втянулся', desc: 'Открой 100 кейсов', metric: 'opened', goal: 100, coins: 500 },
-  { id: 'open1000', title: 'Кейсовый маньяк', desc: 'Открой 1 000 кейсов', metric: 'opened', goal: 1000, coins: 3000 },
-  { id: 'open5000', title: 'Живу в кейсах', desc: 'Открой 5 000 кейсов', metric: 'opened', goal: 5000, coins: 15000 },
-  { id: 'x10', title: 'Иксанул', desc: 'Выбей дроп x10', metric: 'best_mult', goal: 1000, coins: 300 },
-  { id: 'x50', title: 'Залёт', desc: 'Выбей дроп x50', metric: 'best_mult', goal: 5000, coins: 1500 },
-  { id: 'x100', title: 'Стрельнул', desc: 'Выбей дроп x100', metric: 'best_mult', goal: 10000, coins: 5000 },
-  { id: 'x500', title: 'Легенда двора', desc: 'Выбей дроп x500', metric: 'best_mult', goal: 50000, coins: 25000 },
-  { id: 'knife1', title: 'Острое чувство', desc: 'Выбей нож или перчатки', metric: 'specials', goal: 1, coins: 1000 },
-  { id: 'knife10', title: 'Коллекционер', desc: 'Выбей 10 ножей или перчаток', metric: 'specials', goal: 10, coins: 7500 },
-  { id: 'gem', title: 'Самоцвет', desc: 'Выбей фазу «Самоцвет»', metric: 'gems', goal: 1, coins: 5000 },
-  { id: 'nova', title: 'Сверхновая', desc: 'Выбей фазу «Сверхновая»', metric: 'novas', goal: 1, coins: 50000 },
-  { id: 'contra', title: 'Контрабандист', desc: 'Выбей контрабанду', metric: 'contrabands', goal: 1, coins: 10000 },
-  { id: 'up10', title: 'Апгрейдер', desc: 'Выиграй 10 апгрейдов', metric: 'upgrade_wins', goal: 10, coins: 500 },
-  { id: 'up100', title: 'Мастер апгрейда', desc: 'Выиграй 100 апгрейдов', metric: 'upgrade_wins', goal: 100, coins: 5000 },
-  { id: 'lucky', title: 'Один на миллион', desc: 'Выиграй апгрейд с шансом 5 % и ниже', metric: 'lucky_ups', goal: 1, coins: 2500 },
-  { id: 'contract10', title: 'Юрист', desc: 'Подпиши 10 контрактов', metric: 'contracts', goal: 10, coins: 500 },
-  { id: 'contract50', title: 'Нотариус', desc: 'Подпиши 50 контрактов', metric: 'contracts', goal: 50, coins: 3000 },
-  { id: 'bwin1', title: 'Первая кровь', desc: 'Выиграй батл', metric: 'battle_wins', goal: 1, coins: 300 },
-  { id: 'bwin25', title: 'Боец', desc: 'Выиграй 25 батлов', metric: 'battle_wins', goal: 25, coins: 3000 },
-  { id: 'bwin100', title: 'Чемпион', desc: 'Выиграй 100 батлов', metric: 'battle_wins', goal: 100, coins: 15000 },
-  { id: 'peak10k', title: 'Десяточка', desc: 'Накопи 10 000 монет', metric: 'peak', goal: 10_000, coins: 1000 },
-  { id: 'peak100k', title: 'Сотка', desc: 'Накопи 100 000 монет', metric: 'peak', goal: 100_000, coins: 10_000 },
-  { id: 'peak1m', title: 'Миллионер', desc: 'Накопи 1 000 000 монет', metric: 'peak', goal: 1_000_000, coins: 100_000 },
-  { id: 'streak7', title: 'Постоянный клиент', desc: 'Забери дейлик 7 дней подряд', metric: 'streak', goal: 7, coins: 5000 },
-  { id: 'phoenix', title: 'Феникс', desc: 'Используй второй шанс 5 раз', metric: 'second_chances', goal: 5, coins: 1000 },
-  { id: 'rain10', title: 'Промок', desc: 'Попади под дождь 10 раз', metric: 'rains', goal: 10, coins: 1500 },
-  { id: 'chat50', title: 'Душа компании', desc: 'Напиши 50 сообщений в чат', metric: 'chat', goal: 50, coins: 500 },
-  { id: 'flip10', title: 'Орёл', desc: 'Выиграй 10 коинфлипов', metric: 'coinflip_wins', goal: 10, coins: 1500 },
+  { id: 'open10', title: 'Первые шаги', desc: 'Открой 10 кейсов', metric: 'opened', goal: 10, coins: 50 },
+  { id: 'open100', title: 'Втянулся', desc: 'Открой 100 кейсов', metric: 'opened', goal: 100, coins: 150 },
+  { id: 'open1000', title: 'Кейсовый маньяк', desc: 'Открой 1 000 кейсов', metric: 'opened', goal: 1000, coins: 1000 },
+  { id: 'open5000', title: 'Живу в кейсах', desc: 'Открой 5 000 кейсов', metric: 'opened', goal: 5000, coins: 5000 },
+  { id: 'x10', title: 'Иксанул', desc: 'Выбей дроп x10', metric: 'best_mult', goal: 1000, coins: 150 },
+  { id: 'x50', title: 'Залёт', desc: 'Выбей дроп x50', metric: 'best_mult', goal: 5000, coins: 400 },
+  { id: 'x100', title: 'Стрельнул', desc: 'Выбей дроп x100', metric: 'best_mult', goal: 10000, coins: 1000 },
+  { id: 'x500', title: 'Легенда двора', desc: 'Выбей дроп x500', metric: 'best_mult', goal: 50000, coins: 5000 },
+  { id: 'knife1', title: 'Острое чувство', desc: 'Выбей нож или перчатки', metric: 'specials', goal: 1, coins: 300 },
+  { id: 'knife10', title: 'Коллекционер', desc: 'Выбей 10 ножей или перчаток', metric: 'specials', goal: 10, coins: 3000 },
+  { id: 'gem', title: 'Самоцвет', desc: 'Выбей фазу «Самоцвет»', metric: 'gems', goal: 1, coins: 1500 },
+  { id: 'nova', title: 'Сверхновая', desc: 'Выбей фазу «Сверхновая»', metric: 'novas', goal: 1, coins: 10000 },
+  { id: 'contra', title: 'Контрабандист', desc: 'Выбей контрабанду', metric: 'contrabands', goal: 1, coins: 2500 },
+  { id: 'up10', title: 'Апгрейдер', desc: 'Выиграй 10 апгрейдов', metric: 'upgrade_wins', goal: 10, coins: 250 },
+  { id: 'up100', title: 'Мастер апгрейда', desc: 'Выиграй 100 апгрейдов', metric: 'upgrade_wins', goal: 100, coins: 2500 },
+  { id: 'lucky', title: 'Один на миллион', desc: 'Выиграй апгрейд с шансом 5 % и ниже', metric: 'lucky_ups', goal: 1, coins: 1250 },
+  { id: 'contract10', title: 'Юрист', desc: 'Подпиши 10 контрактов', metric: 'contracts', goal: 10, coins: 250 },
+  { id: 'contract50', title: 'Нотариус', desc: 'Подпиши 50 контрактов', metric: 'contracts', goal: 50, coins: 1500 },
+  { id: 'bwin1', title: 'Первая кровь', desc: 'Выиграй батл', metric: 'battle_wins', goal: 1, coins: 150 },
+  { id: 'bwin25', title: 'Боец', desc: 'Выиграй 25 батлов', metric: 'battle_wins', goal: 25, coins: 1500 },
+  { id: 'bwin100', title: 'Чемпион', desc: 'Выиграй 100 батлов', metric: 'battle_wins', goal: 100, coins: 7500 },
+  { id: 'peak10k', title: 'Десяточка', desc: 'Накопи 10 000 монет', metric: 'peak', goal: 10_000, coins: 300 },
+  { id: 'peak100k', title: 'Сотка', desc: 'Накопи 100 000 монет', metric: 'peak', goal: 100_000, coins: 3000 },
+  { id: 'peak1m', title: 'Миллионер', desc: 'Накопи 1 000 000 монет', metric: 'peak', goal: 1_000_000, coins: 30000 },
+  { id: 'streak7', title: 'Постоянный клиент', desc: 'Забери дейлик 7 дней подряд', metric: 'streak', goal: 7, coins: 2500 },
+  { id: 'phoenix', title: 'Феникс', desc: 'Используй второй шанс 5 раз', metric: 'second_chances', goal: 5, coins: 500 },
+  { id: 'rain10', title: 'Промок', desc: 'Попади под дождь 10 раз', metric: 'rains', goal: 10, coins: 750 },
+  { id: 'chat50', title: 'Душа компании', desc: 'Напиши 50 сообщений в чат', metric: 'chat', goal: 50, coins: 250 },
+  { id: 'flip10', title: 'Орёл', desc: 'Выиграй 10 коинфлипов', metric: 'coinflip_wins', goal: 10, coins: 750 },
 ]
 
 /* ----------------------------- ПРОМОКОДЫ --------------------------------- */
