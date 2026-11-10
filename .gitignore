@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+.env.local
+.superpowers
+test-results
+playwright-report
+e2e/shots
+*.log
+.DS_Store
