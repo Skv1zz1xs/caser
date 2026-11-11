@@ -1,10 +1,10 @@
 -- СГЕНЕРИРОВАНО: npm run gen:sql. Не редактируй руками — меняй src/config/economy.ts и перегенерируй.
--- Версия конфига: a7c576c59f7ed9d8
+-- Версия конфига: 1eb50f3b44cdc79a
 begin;
 delete from public.cfg_outcomes; delete from public.cfg_cases; delete from public.cfg_kv;
-insert into public.cfg_kv(key, value) values ('version', '"a7c576c59f7ed9d8"'::jsonb);
+insert into public.cfg_kv(key, value) values ('version', '"1eb50f3b44cdc79a"'::jsonb);
 insert into public.cfg_kv(key, value) values ('wear_max', '[1000,2500,5500,8000,10000]'::jsonb);
-insert into public.cfg_kv(key, value) values ('num', '{"wear_a":120000,"wear_b":4,"fi_range":10000,"st_limit":1000,"st_pm":1500,"up_edge":950000,"up_min":10000,"up_max":750000,"up_max_items":10,"open_max":10,"inv_limit":3000,"chat_len":200,"nick_min":2,"nick_max":16,"pin_min":4,"avatars":24,"tz_hours":3}'::jsonb);
+insert into public.cfg_kv(key, value) values ('num', '{"wear_a":120000,"wear_b":4,"fi_range":10000,"st_limit":1000,"st_pm":1500,"up_edge":950000,"up_min":10000,"up_max":750000,"up_max_items":10,"open_max":10,"inv_limit":3000,"chat_len":200,"nick_min":2,"nick_max":16,"pin_min":6,"avatars":24,"tz_hours":3}'::jsonb);
 insert into public.cfg_kv(key, value) values ('contract', '{"min":3,"max":10,"buckets":[{"cum":550000,"from":400,"to":800},{"cum":850000,"from":800,"to":1200},{"cum":960000,"from":1200,"to":1900},{"cum":1000000,"from":1900,"to":3400}],"min_pm":400,"max_pm":3400}'::jsonb);
 insert into public.cfg_kv(key, value) values ('battle', '{"max_rounds":10,"countdown_ms":3000,"round_ms":6000,"end_ms":3500,"bots":["Бот Валера","Бот Гена","Бот Жорик","Бот Люся","Бот Толик","Бот Зина","Бот Аркадий","Бот Нюра"],"formats":{"1v1":[0,1],"1v1v1":[0,1,2],"2v2":[0,0,1,1],"1v1v1v1":[0,1,2,3]},"modes":["classic","crazy","terminal","shared","jackpot"]}'::jsonb);
 insert into public.cfg_kv(key, value) values ('coinflip', '{"min":1000,"max":1000000000,"rake_pct":4,"flip_ms":4500}'::jsonb);
