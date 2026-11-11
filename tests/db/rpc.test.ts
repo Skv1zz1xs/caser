@@ -270,6 +270,31 @@ describe('контракты', () => {
   })
 })
 
+describe('контракты: условия «один предмет» и «одинаковый износ»', () => {
+  it('same_item и all_wear срабатывают только когда условие выполнено', async () => {
+    await db.admin.query(
+      `update cfg_kv set value = $1::jsonb where key = 'recipes'`,
+      [JSON.stringify([
+        { id: 'a', name: 'Близнецы-тест', minItems: 3, cond: { type: 'same_item' }, chance: 10000, target: 6, from: 3000, to: 3000, cooldownMin: 20 },
+        { id: 'b', name: 'Износ-тест', minItems: 3, cond: { type: 'all_wear', idx: 0 }, chance: 10000, target: 6, from: 3000, to: 3000, cooldownMin: 20 },
+      ])],
+    )
+    const u = await db.user('Секретчик')
+    const idx = caseOf('dota').outcomes.find((o) => CATALOG.itemById.get(o.itemId)!.rarity === 3)!.idx
+    const idx2 = caseOf('dota').outcomes.filter((o) => CATALOG.itemById.get(o.itemId)!.rarity === 3).at(-1)!.idx
+    expect(idx2).not.toBe(idx)
+    // три разных предмета, износ разный — рецепты не срабатывают
+    const mixed = [await db.give(u.id, 'dota', idx, { fi: 100 }), await db.give(u.id, 'dota', idx2, { fi: 5000 }), await db.give(u.id, 'dota', idx2, { fi: 9000 })]
+    expect((await db.rpc(u.uid, 'contract', { p_ids: mixed })).secret).toBeNull()
+    // три одинаковых — «Близнецы»
+    const twins = [await db.give(u.id, 'dota', idx, { fi: 5000 }), await db.give(u.id, 'dota', idx, { fi: 6000 }), await db.give(u.id, 'dota', idx, { fi: 7000 })]
+    expect((await db.rpc(u.uid, 'contract', { p_ids: twins })).secret).toMatchObject({ name: 'Близнецы-тест', hit: true })
+    // разные предметы, но все «С иголочки» — «Износ»
+    const mint = [await db.give(u.id, 'dota', idx, { fi: 100 }), await db.give(u.id, 'dota', idx2, { fi: 200 }), await db.give(u.id, 'dota', idx2, { fi: 300 })]
+    expect((await db.rpc(u.uid, 'contract', { p_ids: mint })).secret).toMatchObject({ name: 'Износ-тест', hit: true })
+  })
+})
+
 describe('батлы', () => {
   it('взнос списывается, батл стартует при заполнении, исход совпадает с TS и сидом', async () => {
     const a = await db.user('Боец1')

@@ -159,6 +159,21 @@ export const CASE_ECON: { id: string; price: number; rtp: number; profile: strin
   { id: 'almaz', price: 100_000, rtp: 0.9, profile: 'standard' },
   { id: 'korona', price: 250_000, rtp: 0.9, profile: 'standard' },
   { id: 'absolut', price: 1_000_000, rtp: 0.9, profile: 'standard' },
+  // Новые кейсы
+  { id: 'okean', price: 14, rtp: 0.95, profile: 'standard' },
+  { id: 'plyazh', price: 22, rtp: 0.95, profile: 'standard' },
+  { id: 'newyear', price: 55, rtp: 0.94, profile: 'standard' },
+  { id: 'hellow', price: 66, rtp: 0.94, profile: 'standard' },
+  { id: 'kino', price: 75, rtp: 0.94, profile: 'standard' },
+  { id: 'gorod', price: 110, rtp: 0.93, profile: 'standard' },
+  { id: 'laba', price: 150, rtp: 0.93, profile: 'standard' },
+  { id: 'westvest', price: 180, rtp: 0.93, profile: 'standard' },
+  { id: 'bunker', price: 420, rtp: 0.93, profile: 'standard' },
+  { id: 'dzhungli', price: 600, rtp: 0.93, profile: 'standard' },
+  { id: 'samurai', price: 900, rtp: 0.92, profile: 'standard' },
+  { id: 'rytsar', price: 1_800, rtp: 0.92, profile: 'standard' },
+  { id: 'titan', price: 150_000, rtp: 0.9, profile: 'standard' },
+  { id: 'bog', price: 500_000, rtp: 0.9, profile: 'standard' },
   // Бесплатный (цены предметов — в FREE_TABLE)
   { id: 'free', price: 0, rtp: 1, profile: 'free' },
 ]

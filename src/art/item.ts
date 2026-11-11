@@ -42,6 +42,10 @@ const hsl = (h: number, s: number, l: number) =>
   `hsl(${Math.round(((h % 360) + 360) % 360)} ${Math.round(Math.max(0, Math.min(100, s)))}% ${Math.round(Math.max(0, Math.min(100, l)))}%)`
 
 
+function hexToHsl(hex: string): string {
+  const [h, sat, l] = toHsl(hex)
+  return `hsl(${Math.round(h)} ${Math.round(sat)}% ${Math.round(l)}%)`
+}
 /** 'hsl(H S% L%)' → [r,g,b] 0..255 */
 function parseHslParts(css: string): [number, number, number] {
   const m = css.match(/hsl\((\d+)\s+(\d+)%\s+(\d+)%\)/)
@@ -216,6 +220,38 @@ const FINISHES: Finish[] = [
     const seed = Math.floor(r() * 900)
     const filter = `<filter id="hy" filterUnits="userSpaceOnUse" x="0" y="0" width="200" height="100" color-interpolation-filters="sRGB"><feTurbulence type="turbulence" baseFrequency="0.01 0.035" numOctaves="3" seed="${seed}"/><feComponentTransfer><feFuncR type="discrete" tableValues="${tv(0)}"/><feFuncG type="discrete" tableValues="${tv(1)}"/><feFuncB type="discrete" tableValues="${tv(2)}"/><feFuncA type="linear" slope="0" intercept="1"/></feComponentTransfer></filter>`
     return { defs: filter, fill: p.dark, over: '<rect width="200" height="100" filter="url(#hy)"/>' }
+  },
+  // 21 дамаск: вытянутые волнистые слои стали
+  (p, r) => {
+    const rgb = [p.dark, p.a, p.dark, p.light, p.dark, p.b, p.dark].map(parseHsl)
+    const tv = (k: number) => rgb.map((c) => (c[k] / 255).toFixed(3)).join(' ')
+    const seed = Math.floor(r() * 900)
+    const filter = `<filter id="dm" filterUnits="userSpaceOnUse" x="0" y="0" width="200" height="100" color-interpolation-filters="sRGB"><feTurbulence type="turbulence" baseFrequency="0.012 0.22" numOctaves="2" seed="${seed}"/><feComponentTransfer><feFuncR type="discrete" tableValues="${tv(0)}"/><feFuncG type="discrete" tableValues="${tv(1)}"/><feFuncB type="discrete" tableValues="${tv(2)}"/><feFuncA type="linear" slope="0" intercept="1"/></feComponentTransfer></filter>`
+    return { defs: filter, fill: p.dark, over: '<rect width="200" height="100" filter="url(#dm)"/>' }
+  },
+  // 22 лава: раскалённые трещины в тёмной породе
+  (p, r) => {
+    const seed = Math.floor(r() * 900)
+    const filter = `<filter id="lv" filterUnits="userSpaceOnUse" x="0" y="0" width="200" height="100" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.03 0.05" numOctaves="4" seed="${seed}"/><feComponentTransfer><feFuncR type="table" tableValues="0.05 0.1 0.9 1 0.1"/><feFuncG type="table" tableValues="0.02 0.05 0.3 0.8 0.04"/><feFuncB type="table" tableValues="0.02 0.02 0.05 0.1 0.02"/><feFuncA type="linear" slope="0" intercept="1"/></feComponentTransfer></filter>`
+    return { defs: filter, fill: '#100808', over: '<rect width="200" height="100" filter="url(#lv)"/>' }
+  },
+  // 23 аврора: размытые ленты света на тёмном
+  (p, r) => {
+    let b = ''
+    for (let i = 0; i < 4; i++) {
+      const y = 15 + r() * 70
+      b += `<path d="M-10 ${y}C40 ${y - 30} 90 ${y + 30} 140 ${y - 10}S210 ${y + 20} 220 ${y}" stroke="${[p.a, p.c, p.b, p.light][i]}" stroke-width="${10 + r() * 14}" fill="none" opacity=".55" filter="url(#au)"/>`
+    }
+    return { defs: `<filter id="au"><feGaussianBlur stdDeviation="5"/></filter>` + lin('f', [p.dark, '#07101c'], 0, 1), fill: 'url(#f)', over: b }
+  },
+  // 24 хром-пятна: зеркальные перетекания (светлый металл с тёмными завихрениями)
+  (p, r) => {
+    const rgb = ['#ffffff', '#8a93a6', '#1b2030', '#c9d3e6', '#2a3350', '#f2f6ff'].map((c) => parseHsl(hexToHsl(c)))
+    const tv = (k: number) => rgb.map((c) => (c[k] / 255).toFixed(3)).join(' ')
+    const seed = Math.floor(r() * 900)
+    const filter = `<filter id="ch" filterUnits="userSpaceOnUse" x="0" y="0" width="200" height="100" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.014 0.03" numOctaves="3" seed="${seed}"/><feComponentTransfer><feFuncR type="table" tableValues="${tv(0)}"/><feFuncG type="table" tableValues="${tv(1)}"/><feFuncB type="table" tableValues="${tv(2)}"/><feFuncA type="linear" slope="0" intercept="1"/></feComponentTransfer></filter>`
+    const tint = `<rect width="200" height="100" fill="${p.a}" opacity=".38" style="mix-blend-mode:multiply"/>`
+    return { defs: filter, fill: '#8a93a6', over: '<rect width="200" height="100" filter="url(#ch)"/>' + tint }
   },
 ]
 

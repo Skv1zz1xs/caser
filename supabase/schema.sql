@@ -598,6 +598,9 @@ begin
       perform game.add_feed(p_pid, 'drop', d - 'roll' - 'nonce' - 'id');
     end if;
     if (d ->> 'rarity')::int >= 3 or v_mult >= 300 then perform game.note_best(p_pid, d - 'roll' - 'nonce'); end if;
+    if v_mult >= 5000 or (d ->> 'phase')::int >= 3 then
+      perform game.add_chat(null, 'system', (select nick from public.profiles where id = p_pid) || ' выбил ультра дроп на ' || (v_price / 100) || ' монет');
+    end if;
     v_drops := v_drops || d;
   end loop;
   perform game.bump(p_pid,
@@ -971,7 +974,10 @@ end $$;
 -- Особые сочетания предметов. Возвращает рецепт (с пометкой cooling) или null.
 create function game.recipe_match(p_pid uuid, p_ids bigint[], p_n int, p_rarity int) returns jsonb language plpgsql as $$
 declare rc jsonb; c jsonb; v_cases text[]; v_all_st boolean; v_wears int[]; v_weapons text[]; v_ok boolean; v_used timestamptz;
+  v_ids_n int; v_wear_one int;
 begin
+  select count(distinct i.item_id), case when count(distinct game.wear_idx(i.fi)) = 1 then min(game.wear_idx(i.fi)) end
+    into v_ids_n, v_wear_one from public.items i where i.owner = p_pid and i.id = any (p_ids);
   select array_agg(distinct i.case_id), bool_and(i.st), array_agg(distinct game.wear_idx(i.fi)), array_agg(distinct o.weapon)
     into v_cases, v_all_st, v_wears, v_weapons
   from public.items i join public.cfg_outcomes o on o.case_id = i.case_id and o.idx = i.outcome_idx
@@ -985,6 +991,8 @@ begin
       when 'all_st' then v_all_st
       when 'all_wears' then cardinality(v_wears) = 5
       when 'weapon_all' then cardinality(v_weapons) = 1 and v_weapons[1] = c ->> 'weapon'
+      when 'same_item' then v_ids_n = 1
+      when 'all_wear' then v_wear_one is not null and v_wear_one = (c ->> 'idx')::int
       else false end;
     if coalesce(v_ok, false) then
       select used_at into v_used from public.recipe_uses where profile_id = p_pid and recipe_id = rc ->> 'id';

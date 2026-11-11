@@ -10,6 +10,7 @@ import { applyMe, useGame } from '../store/game'
 import { dropSound, sfx } from '../audio/sfx'
 import { Roulette } from '../components/Roulette'
 import { prewarmCase } from '../art/three3d'
+import { Cinematic, detectCinema, type CineEvent } from '../components/Cinematic'
 import { Btn, CaseCover, Confetti, ItemArt, ItemCard, Money, Section, cx, itemTitle, mmss, rc, useNow } from '../components/ui'
 
 const COUNTS = [1, 2, 3, 5, 10]
@@ -28,6 +29,7 @@ export default function CasePage() {
   const [stage, setStage] = useState<'idle' | 'spin' | 'result'>('idle')
   const [busy, setBusy] = useState(false)
   const [fx, setFx] = useState({ confetti: 0, flash: '', shake: false, gold: false })
+  const [cine, setCine] = useState<CineEvent | null>(null)
   const done = useRef(0)
   const now = useNow()
 
@@ -56,6 +58,7 @@ export default function CasePage() {
     setTimeout(() => setFx((f) => ({ ...f, shake: false, flash: '' })), 800)
     useGame.getState().addItems(items)
     setStage('result')
+    setCine(detectCinema(items, c.price))
     if (best.x && best.x >= 1000) useGame.getState().toast(`${fmtX(best.price, c.price)} — вот это залёт!`, 'gold')
   }
 
@@ -100,6 +103,7 @@ export default function CasePage() {
 
   return (
     <div className={cx('space-y-4', fx.shake && 'shake')}>
+      <Cinematic ev={cine} onDone={() => setCine(null)} />
       <Confetti fire={fx.confetti} colors={fx.gold ? ['#ffe9a8', '#ffc93c', '#ff9a2e', '#ffffff'] : undefined} />
       {fx.flash && <div className="flash pointer-events-none fixed inset-0 z-40" style={{ background: `radial-gradient(circle at 50% 40%, ${fx.flash}, transparent 65%)` }} />}
 
