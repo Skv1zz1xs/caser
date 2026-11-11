@@ -29,7 +29,7 @@ const settle = (id: string) => db.admin.query("update pending_credits set availa
 describe('вход и права', () => {
   it('новый ник создаёт профиль со стартовым балансом', async () => {
     const uid = randomUUID()
-    const r = await db.rpc(uid, 'login', { p_nick: 'Вася', p_pin: '1234', p_avatar: 3 })
+    const r = await db.rpc(uid, 'login', { p_nick: 'Вася', p_pin: '123456', p_avatar: 3 })
     expect(r.ok).toBe(true)
     expect(r.created).toBe(true)
     expect(r.me.balance).toBe(BONUS.startBalance * 100)
@@ -38,20 +38,20 @@ describe('вход и права', () => {
   it('занятый ник с неверным PIN отклоняется, с верным — пускает с другого устройства', async () => {
     const bad = await db.rpc(randomUUID(), 'login', { p_nick: 'вася', p_pin: '0000' })
     expect(bad.ok).toBe(false)
-    const ok = await db.rpc(randomUUID(), 'login', { p_nick: 'ВАСЯ', p_pin: '1234' })
+    const ok = await db.rpc(randomUUID(), 'login', { p_nick: 'ВАСЯ', p_pin: '123456' })
     expect(ok.ok).toBe(true)
     expect(ok.created).toBe(false)
   })
   it('пять неверных PIN блокируют вход', async () => {
-    await db.user('Замок', '4321')
-    for (let i = 0; i < 5; i++) await db.rpc(randomUUID(), 'login', { p_nick: 'Замок', p_pin: 'xxxx' })
-    const r = await db.rpc(randomUUID(), 'login', { p_nick: 'Замок', p_pin: '4321' })
+    await db.user('Замок', '654321')
+    for (let i = 0; i < 5; i++) await db.rpc(randomUUID(), 'login', { p_nick: 'Замок', p_pin: 'xxxxxx' })
+    const r = await db.rpc(randomUUID(), 'login', { p_nick: 'Замок', p_pin: '654321' })
     expect(r.ok).toBe(false)
     expect(r.error).toContain('попыток')
   })
   it('кривой ник и короткий PIN не проходят', async () => {
-    expect((await db.rpc(randomUUID(), 'login', { p_nick: 'a', p_pin: '1234' })).ok).toBe(false)
-    expect((await db.rpc(randomUUID(), 'login', { p_nick: '<script>', p_pin: '1234' })).ok).toBe(false)
+    expect((await db.rpc(randomUUID(), 'login', { p_nick: 'a', p_pin: '123456' })).ok).toBe(false)
+    expect((await db.rpc(randomUUID(), 'login', { p_nick: '<script>', p_pin: '123456' })).ok).toBe(false)
     expect((await db.rpc(randomUUID(), 'login', { p_nick: 'Норм', p_pin: '12' })).ok).toBe(false)
   })
   it('без входа RPC недоступны, sync отдаёт me = null', async () => {
@@ -499,5 +499,32 @@ describe('бонусы и прогрессия', () => {
     expect(lb.balance[0].value).toBeGreaterThanOrEqual(lb.balance[1].value)
     const p = await db.rpc(u.uid, 'get_profile', { p_nick: 'топ' })
     expect(p.nick).toBe('Топ')
+  })
+})
+
+describe('защита от злоупотреблений', () => {
+  it('«второй шанс» не выдаётся, пока монеты лежат в открытом коинфлипе или батле', async () => {
+    const u = await db.user('Хитрец')
+    const flip = await db.rpc(u.uid, 'coinflip_create', { p_stake: BONUS.startBalance * 100, p_side: 0 })
+    expect(await db.balance(u.id)).toBe(0)
+    expect(await err(db.rpc(u.uid, 'bonus_second_chance'))).toContain('слито')
+    await db.rpc(u.uid, 'coinflip_cancel', { p_id: flip.id })
+    expect(await db.balance(u.id)).toBe(BONUS.startBalance * 100)
+  })
+  it('нельзя держать больше трёх открытых батлов', async () => {
+    const u = await db.user('Лобби-спамер')
+    for (let i = 0; i < 3; i++) await db.rpc(u.uid, 'battle_create', { p_cases: ['meloch'], p_format: '1v1', p_mode: 'classic' })
+    expect(await err(db.rpc(u.uid, 'battle_create', { p_cases: ['meloch'], p_format: '1v1', p_mode: 'classic' }))).toContain('Слишком много открытых')
+  })
+  it('с одной сессии нельзя создать больше трёх профилей, но войти в свой можно', async () => {
+    const uid = randomUUID()
+    for (let i = 1; i <= 3; i++) expect((await db.rpc(uid, 'login', { p_nick: 'Твинк' + i, p_pin: '123456' })).ok).toBe(true)
+    const fourth = await db.rpc(uid, 'login', { p_nick: 'Твинк4', p_pin: '123456' })
+    expect(fourth.ok).toBe(false)
+    expect(fourth.error).toContain('три профиля')
+    expect((await db.rpc(uid, 'login', { p_nick: 'Твинк2', p_pin: '123456' })).ok).toBe(true)
+  })
+  it('слишком короткий PIN отклоняется', async () => {
+    expect((await db.rpc(randomUUID(), 'login', { p_nick: 'Короткий', p_pin: '1234' })).ok).toBe(false)
   })
 })

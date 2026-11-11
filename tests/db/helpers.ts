@@ -55,7 +55,7 @@ export async function setupDb(): Promise<Db> {
   return {
     admin,
     rpc,
-    async user(nick, pin = '1234') {
+    async user(nick, pin = '123456') {
       const uid = randomUUID()
       const r = await rpc(uid, 'login', { p_nick: nick, p_pin: pin, p_avatar: 1 })
       if (!r.ok) throw new Error(r.error)

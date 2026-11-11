@@ -138,6 +138,13 @@ create table if not exists public.sessions (
   created_at  timestamptz not null default now()
 );
 
+create table if not exists public.auth_profiles (
+  auth_id     uuid not null,
+  profile_id  uuid not null references public.profiles (id) on delete cascade,
+  created_at  timestamptz not null default now(),
+  primary key (auth_id, profile_id)
+);
+
 create table if not exists public.seeds (
   id           bigint generated always as identity primary key,
   profile_id   uuid references public.profiles (id) on delete cascade,  -- null у сидов батлов и коинфлипов
@@ -274,7 +281,7 @@ create index if not exists cfg_outcomes_pool_idx on public.cfg_outcomes (rarity,
 do $$
 declare t text;
 begin
-  foreach t in array array['profiles','feed','chat','battles','coinflips','rain','sessions','seeds','secrets','rolls','items',
+  foreach t in array array['profiles','feed','chat','battles','coinflips','rain','sessions','auth_profiles','seeds','secrets','rolls','items',
                            'battle_results','pending_credits','counters','claims','recipe_uses','rain_joins',
                            'cfg_kv','cfg_cases','cfg_outcomes']
   loop
@@ -619,7 +626,7 @@ end $$;
 -- ---------- вход ----------
 -- Ник свободен → создаём профиль. Ник занят → нужен PIN (вход с другого устройства).
 create function public.login(p_nick text, p_pin text, p_avatar int default 0) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare
   v_uid uuid := auth.uid(); v_nick text := btrim(coalesce(p_nick, '')); v_pin text := coalesce(p_pin, '');
   p public.profiles; s public.secrets; v_seed bigint; v_salt text; v_created boolean := false;
@@ -650,9 +657,13 @@ begin
     end if;
     update secrets set fails = 0, locked_until = null where profile_id = p.id;
   else
+    if (select count(*) from auth_profiles where auth_id = v_uid) >= 3 then
+      return jsonb_build_object('ok', false, 'error', 'С этого устройства уже создано три профиля. Войди в один из них по нику и PIN');
+    end if;
     insert into profiles (nick, avatar, balance)
       values (v_nick, greatest(0, least(coalesce(p_avatar, 0), game.num('avatars')::int - 1)), (game.cfg('bonus') ->> 'start')::bigint)
       returning * into p;
+    insert into auth_profiles (auth_id, profile_id) values (v_uid, p.id);
     v_seed := game.new_seed(p.id);
     v_salt := encode(sha256(uuid_send(gen_random_uuid())), 'hex');
     insert into secrets (profile_id, pin_hash, pin_salt, seed_id, client_seed)
@@ -666,14 +677,14 @@ begin
 end $$;
 
 create function public.logout() returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 begin
   delete from sessions where auth_id = auth.uid();
   return jsonb_build_object('ok', true);
 end $$;
 
 create function public.set_avatar(p_avatar int) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid();
 begin
   update profiles set avatar = greatest(0, least(coalesce(p_avatar, 0), game.num('avatars')::int - 1)) where id = v_pid;
@@ -683,7 +694,7 @@ end $$;
 -- ---------- синхронизация ----------
 -- Один запрос на всё «живое»: состояние игрока, новый чат, новая лента, батлы, коинфлипы, дождь.
 create function public.sync(p_chat_after bigint default 0, p_feed_after bigint default 0) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid; v_chat jsonb; v_feed jsonb;
 begin
   select profile_id into v_pid from sessions where auth_id = auth.uid();
@@ -712,7 +723,7 @@ end $$;
 
 -- ---------- инвентарь ----------
 create function public.get_inventory() returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid();
 begin
   return jsonb_build_object(
@@ -722,7 +733,7 @@ end $$;
 
 -- ---------- открытие кейса ----------
 create function public.open_case(p_case text, p_count int default 1, p_ticket boolean default false) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); c public.cfg_cases; p public.profiles; v_cost bigint := 0; v_tk int; v_drops jsonb;
 begin
   select * into c from cfg_cases where case_id = p_case;
@@ -753,11 +764,12 @@ end $$;
 
 -- ---------- продажа ----------
 create function public.sell_items(p_ids bigint[]) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); v_ids bigint[]; v_n int; v_sum bigint;
 begin
   v_ids := array(select distinct x from unnest(coalesce(p_ids, '{}'::bigint[])) x);
   if cardinality(v_ids) = 0 then raise exception 'Нечего продавать'; end if;
+  if cardinality(v_ids) > 3000 then raise exception 'Слишком много предметов за раз'; end if;
   perform game.lock(v_pid);
   with del as (delete from items where owner = v_pid and id = any (v_ids) returning price)
   select count(*), coalesce(sum(price), 0) into v_n, v_sum from del;
@@ -769,7 +781,7 @@ end $$;
 
 -- Продать всё не дороже p_max_price (для «продать всё» передаётся очень большое число).
 create function public.sell_below(p_max_price bigint) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); v_ids bigint[]; v_sum bigint;
 begin
   perform game.lock(v_pid);
@@ -784,7 +796,7 @@ end $$;
 
 -- ---------- чат ----------
 create function public.chat_send(p_text text) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); v_text text := btrim(regexp_replace(coalesce(p_text, ''), '\s+', ' ', 'g')); p public.profiles;
 begin
   if v_text = '' then raise exception 'Пустое сообщение'; end if;
@@ -799,14 +811,14 @@ end $$;
 
 -- ---------- честность ----------
 create function public.fair_state() returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid();
 begin
   return game.me(v_pid) -> 'fair';
 end $$;
 
 create function public.fair_set_client_seed(p_seed text) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); v_seed text := btrim(coalesce(p_seed, ''));
 begin
   if char_length(v_seed) < 1 or char_length(v_seed) > 64 then raise exception 'Client seed — от 1 до 64 символов'; end if;
@@ -817,7 +829,7 @@ end $$;
 
 -- Раскрывает текущий server seed и выдаёт новый (nonce обнуляется).
 create function public.fair_rotate() returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); v_old bigint; v_new bigint; v_seed text; v_hash text;
 begin
   perform game.lock(v_pid);
@@ -831,7 +843,7 @@ end $$;
 
 -- Журнал роллов игрока. server_seed виден только у раскрытых сидов.
 create function public.fair_rolls(p_before bigint default null, p_limit int default 30) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid();
 begin
   return (select coalesce(jsonb_agg(x order by id desc), '[]'::jsonb) from (
@@ -845,7 +857,7 @@ end $$;
 
 -- ---------- лидерборд и профили ----------
 create function public.leaderboard() returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 begin
   perform game.pid();
   return jsonb_build_object(
@@ -865,7 +877,7 @@ begin
 end $$;
 
 create function public.get_profile(p_nick text) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare p public.profiles;
 begin
   perform game.pid();
@@ -884,7 +896,7 @@ end $$;
 -- =====================================================================================
 -- шанс (ppm) = (предметы + монеты) × edge / цена цели; допустим только коридор из конфига.
 create function public.upgrade(p_ids bigint[], p_coins bigint, p_case text, p_idx int) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare
   v_pid uuid := game.pid(); p public.profiles; t record; v_ids bigint[]; v_n int; v_in bigint;
   v_coins bigint := greatest(coalesce(p_coins, 0), 0); v_total bigint; v_target bigint; v_ppm bigint;
@@ -1007,7 +1019,7 @@ begin
 end $$;
 
 create function public.contract(p_ids bigint[]) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare
   v_pid uuid := game.pid(); cfg jsonb := game.cfg('contract'); v_ids bigint[]; v_n int; v_cnt int; v_sum bigint;
   v_rmin int; v_rmax int; v_r int; v_lo bigint; v_hi bigint; r record; v_mult bigint; v_value bigint; v_target int;
@@ -1215,7 +1227,7 @@ create function game.battle_full(p_players jsonb) returns boolean language sql i
 $$;
 
 create function public.battle_create(p_cases text[], p_format text, p_mode text, p_private boolean default false) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); p public.profiles; cfg jsonb := game.cfg('battle'); v_teams jsonb; v_n int; v_cnt int; v_cost bigint;
   v_seed bigint; v_hash text; v_players jsonb; v_id uuid; i int;
 begin
@@ -1228,6 +1240,7 @@ begin
     from unnest(p_cases) x join cfg_cases c on c.case_id = x and c.profile <> 'free';
   if v_cnt <> v_n then raise exception 'В списке есть неизвестный кейс'; end if;
   p := game.lock(v_pid);
+  if (select count(*) from battles where created_by = v_pid and status = 'open') >= 3 then raise exception 'Слишком много открытых батлов'; end if;
   if p.balance < v_cost then raise exception 'Недостаточно монет'; end if;
   update profiles set balance = balance - v_cost where id = v_pid;
   v_seed := game.new_seed(null);
@@ -1242,7 +1255,7 @@ begin
 end $$;
 
 create function public.battle_join(p_id uuid, p_slot int default null) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); b public.battles; p public.profiles; v_slot int := p_slot;
 begin
   select * into b from battles where id = p_id for update;
@@ -1268,7 +1281,7 @@ end $$;
 
 -- Создатель сажает ботов: на одно место или (p_slot = null) на все свободные.
 create function public.battle_add_bot(p_id uuid, p_slot int default null) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); b public.battles; bots jsonb := game.cfg('battle') -> 'bots'; v_off int; s int; v_done boolean := false;
 begin
   select * into b from battles where id = p_id for update;
@@ -1302,7 +1315,7 @@ end $$;
 
 -- Выйти из лобби: взнос возвращается. Если уходит создатель — батл отменяется, взносы возвращаются всем.
 create function public.battle_leave(p_id uuid) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); b public.battles; v_slot int;
 begin
   select * into b from battles where id = p_id for update;
@@ -1321,7 +1334,7 @@ begin
 end $$;
 
 create function public.get_battle(p_id uuid) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v jsonb;
 begin
   perform game.pid();
@@ -1375,7 +1388,7 @@ begin
 end $$;
 
 create function public.coinflip_create(p_stake bigint, p_side int) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); p public.profiles; cfg jsonb := game.cfg('coinflip'); v_seed bigint; v_hash text; v_id bigint;
 begin
   if p_stake is null or p_stake < (cfg ->> 'min')::bigint or p_stake > (cfg ->> 'max')::bigint then
@@ -1394,7 +1407,7 @@ begin
 end $$;
 
 create function public.coinflip_join(p_id bigint) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); c public.coinflips; p public.profiles;
 begin
   select * into c from coinflips where id = p_id for update;
@@ -1410,7 +1423,7 @@ begin
 end $$;
 
 create function public.coinflip_bot(p_id bigint) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); c public.coinflips; bots jsonb := game.cfg('battle') -> 'bots';
 begin
   select * into c from coinflips where id = p_id for update;
@@ -1424,7 +1437,7 @@ begin
 end $$;
 
 create function public.coinflip_cancel(p_id bigint) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); c public.coinflips;
 begin
   select * into c from coinflips where id = p_id for update;
@@ -1467,7 +1480,7 @@ begin
 end $$;
 
 create function public.bonus_free_case() returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); p public.profiles; v_cd int := (game.cfg('bonus') ->> 'free_cd_min')::int; v_drops jsonb;
 begin
   p := game.lock(v_pid);
@@ -1480,7 +1493,7 @@ begin
 end $$;
 
 create function public.bonus_daily() returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); p public.profiles; c jsonb := game.cfg('bonus'); v_streak int; v_amount bigint;
 begin
   p := game.lock(v_pid);
@@ -1496,12 +1509,15 @@ begin
 end $$;
 
 create function public.bonus_second_chance() returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); p public.profiles; c jsonb := game.cfg('bonus') -> 'second'; v_net bigint;
 begin
   p := game.lock(v_pid);
   v_net := p.balance + (select coalesce(sum(price), 0) from items where owner = v_pid)
-                     + (select coalesce(sum(amount), 0) from pending_credits where profile_id = v_pid);
+                     + (select coalesce(sum(amount), 0) from pending_credits where profile_id = v_pid)
+                     + (select coalesce(sum(stake), 0) from coinflips where creator = v_pid and status = 'open')
+                     + (select coalesce(sum(cost), 0) from battles b where b.status = 'open'
+                          and exists (select 1 from jsonb_array_elements(b.players) x where x ->> 'pid' = v_pid::text));
   if v_net >= (c ->> 'max_net')::bigint then raise exception 'Второй шанс — только когда всё слито'; end if;
   if p.second_at is not null and p.second_at + make_interval(mins => (c ->> 'cd_min')::int) > now() then
     raise exception 'Второй шанс ещё перезаряжается';
@@ -1512,7 +1528,7 @@ begin
 end $$;
 
 create function public.promo_redeem(p_code text) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); v_code text := upper(btrim(coalesce(p_code, ''))); pr jsonb;
 begin
   pr := game.cfg('promo') -> v_code;
@@ -1526,7 +1542,7 @@ end $$;
 
 -- Забрать награду: p_kind = quest | ach | level, p_id — id задания/достижения или номер уровня.
 create function public.claim(p_kind text, p_id text) returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); p public.profiles; q jsonb; v_per text; v_val bigint; v_lvl int; v_reward jsonb;
 begin
   p := game.lock(v_pid);
@@ -1571,7 +1587,7 @@ declare c jsonb := game.cfg('bonus') -> 'rain'; r public.rain; v_n int; v_share 
 begin
   if c is null or not pg_try_advisory_xact_lock(770177) then return; end if;
   if random() < 0.01 then perform game.gc(); end if;
-  select * into r from public.rain order by id desc limit 1;
+  select * into r from public.rain order by id desc limit 1 for update;
   if not found then
     insert into public.rain (pot, starts_at, ends_at, settled) values (0, now(), now(), true);
     return;
@@ -1607,7 +1623,7 @@ begin
 end $$;
 
 create function public.rain_join() returns jsonb
-language plpgsql security definer set search_path = public, game as $$
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); r public.rain;
 begin
   select * into r from rain order by id desc limit 1;

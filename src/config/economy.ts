@@ -338,4 +338,4 @@ export const PROMO_CODES: { code: string; coins?: number; case?: [string, number
 ]
 
 /* ----------------------------- ПРОЧЕЕ ------------------------------------ */
-export const LIMITS = { inventory: 3000, chatLen: 200, nickMin: 2, nickMax: 16, pinMin: 4, avatars: 24, openMax: 10 }
+export const LIMITS = { inventory: 3000, chatLen: 200, nickMin: 2, nickMax: 16, pinMin: 6, avatars: 24, openMax: 10 }

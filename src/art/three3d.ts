@@ -165,6 +165,9 @@ export interface ItemSpec { item: string; phase: number; wear: number }
 const MODEL_SHAPES = new Set(Object.keys(modelManifest))
 
 /** Дополнительный поворот после автовыравнивания (градусы XYZ): ствол/лезвие вправо, верх вверх. */
+/** Модели с почти чёрной родной текстурой: поднимаем яркость для маски покраски. */
+const LIFT: Record<string, number> = { shotgun: 0.03, pdw: 0.03 }
+
 const ORIENT: Record<string, { auto?: boolean; r?: [number, number, number] }> = {
   glove: { auto: false },
   gauntlet: { auto: false },
@@ -243,17 +246,17 @@ async function loadTemplate(E: Engine, shape: string) {
 const NO_PAINT = /glass|lens|reticle|bullet|brass|casing|ammo|screen|hologram/i
 
 /** Накладывает скин на материал: проекция с трёх сторон + сохранение яркости/деталей оригинала. */
-function paintMaterial(E: Engine, src: T.Material, skin: T.Texture, size: T.Vector3, opts: { paint: number; gloss: number; glow: number; wear: number; scale: number }): T.Material {
+function paintMaterial(E: Engine, src: T.Material, skin: T.Texture, size: T.Vector3, opts: { paint: number; gloss: number; glow: number; wear: number; scale: number; lift: number }): T.Material {
   const { THREE } = E
   const mat = (src as T.MeshStandardMaterial).clone()
   const std = mat as T.MeshStandardMaterial
   if (!(std as any).isMeshStandardMaterial) return mat
-  if (NO_PAINT.test(src.name) || src.transparent || (std.emissive.getHex() !== 0 && std.emissiveIntensity > 0.5)) return mat
+  if (NO_PAINT.test(src.name) || src.transparent) return mat
   std.envMapIntensity = 1.35
   const s = Math.max(size.x / 2, size.y) * opts.scale
   const uniforms = {
     uSkin: { value: skin }, uHalf: { value: new THREE.Vector3(size.x / 2, size.y / 2, size.z / 2) }, uS: { value: s },
-    uWear: { value: opts.wear }, uPaint: { value: opts.paint }, uGloss: { value: opts.gloss }, uGlow: { value: opts.glow },
+    uWear: { value: opts.wear }, uLift: { value: opts.lift }, uPaint: { value: opts.paint }, uGloss: { value: opts.gloss }, uGlow: { value: opts.glow },
   }
   std.onBeforeCompile = (sh: any) => {
     Object.assign(sh.uniforms, uniforms)
@@ -261,7 +264,7 @@ function paintMaterial(E: Engine, src: T.Material, skin: T.Texture, size: T.Vect
       .replace('#include <common>', '#include <common>\nvarying vec3 vOP; varying vec3 vON;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvOP = position; vON = normal;')
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vOP; varying vec3 vON; uniform sampler2D uSkin; uniform vec3 uHalf; uniform float uS, uPaint, uGloss, uGlow, uWear;\nvec3 zSkin = vec3(0.0); float zPaint = 0.0;')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vOP; varying vec3 vON; uniform sampler2D uSkin; uniform vec3 uHalf; uniform float uS, uPaint, uGloss, uGlow, uWear, uLift;\nvec3 zSkin = vec3(0.0); float zPaint = 0.0;')
       .replace(
         '#include <map_fragment>',
         `#include <map_fragment>
@@ -273,7 +276,7 @@ function paintMaterial(E: Engine, src: T.Material, skin: T.Texture, size: T.Vect
           vec3 sTop  = texture2D(uSkin, vec2(p.x / (2.0 * uS), p.z / uS)).rgb;
           vec3 sEnd  = texture2D(uSkin, vec2(p.z / (2.0 * uS), p.y / uS)).rgb;
           zSkin = sSide * an.z + sTop * an.y + sEnd * an.x;
-          float l = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+          float l = max(dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)), uLift);
           float k = clamp(0.72 + 0.95 * pow(l, 0.65), 0.72, 1.35);
           // тёмные детали (оптика, резина, полимер) остаются родными — красится только корпус
           zPaint = uPaint * smoothstep(0.0015, 0.016, l);
@@ -297,7 +300,7 @@ function paintMaterial(E: Engine, src: T.Material, skin: T.Texture, size: T.Vect
       .replace('#include <opaque_fragment>', 'float zFr = pow(1.0 - clamp(dot(normalize(vViewPosition), normal), 0.0, 1.0), 3.0);\n outgoingLight += zSkin * zFr * 0.3 * zPaint * uGloss;\n#include <opaque_fragment>')
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += zSkin * uGlow * zPaint;')
   }
-  std.customProgramCacheKey = () => 'skin-v3'
+  std.customProgramCacheKey = () => 'skin-v4'
   return mat
 }
 
@@ -309,7 +312,7 @@ async function buildModelItem(E: Engine, def: ItemDef, spec: ItemSpec): Promise<
   skin.wrapS = skin.wrapT = THREE.MirroredRepeatWrapping
   const isGlove = def.kind === 'glove'
   const gem = spec.phase >= 2
-  const opts = { paint: isGlove ? 0.88 : 0.95, gloss: isGlove ? 0.15 : 1, glow: gem ? (spec.phase === 3 ? 0.55 : 0.4) : 0, wear: spec.wear >= 4 ? 0.5 : spec.wear === 3 ? 0.24 : 0.04, scale: isGlove ? 0.4 : 1 }
+  const opts = { paint: isGlove ? 0.88 : 0.95, gloss: isGlove ? 0.15 : 1, glow: gem ? (spec.phase === 3 ? 0.55 : 0.4) : 0, wear: spec.wear >= 4 ? 0.5 : spec.wear === 3 ? 0.24 : 0.04, scale: isGlove ? 0.4 : 1, lift: LIFT[def.shape] ?? 0 }
   const mats = new Map<T.Material, T.Material>()
   const pivot = new THREE.Group()
   for (const m of tpl.meshes) {

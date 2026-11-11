@@ -13,7 +13,7 @@ function watch(page: Page): string[] {
 async function login(page: Page, nick: string) {
   await page.goto('/')
   await page.getByTestId('nick').fill(nick)
-  await page.getByTestId('pin').fill('1234')
+  await page.getByTestId('pin').fill('123456')
   await page.getByTestId('enter').click()
   await expect(page.getByTestId('case-sigma')).toBeVisible()
 }
