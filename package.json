@@ -12,7 +12,9 @@
     "simulate": "tsx scripts/simulate.ts",
     "gen:sql": "tsx scripts/gen-sql.ts",
     "stack": "tsx scripts/devstack/start.ts",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "dev:stack": "vite --mode stack",
+    "build:stack": "vite build --mode stack"
   },
   "dependencies": {
     "@fontsource-variable/manrope": "^5.3.0",
