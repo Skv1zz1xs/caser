@@ -11,7 +11,7 @@ import { fmtShort } from '../shared/money'
 import { rpc } from '../lib/api'
 import { useGame } from '../store/game'
 import { sfx } from '../audio/sfx'
-import { Avatar, Btn, ItemArt, Money, cx, mmss, rc, useNow } from './ui'
+import { Avatar, Btn, ItemArt, Money, cx, mmss, rc, reducedMotion, useNow } from './ui'
 
 const NAV = [
   { to: '/', label: 'Кейсы', icon: LayoutGrid, end: true },
@@ -52,70 +52,113 @@ function BonusChip() {
   )
 }
 
+const EASE = [0.22, 1, 0.36, 1] as const
+
 function Header() {
   const me = useGame((s) => s.me)!
   const sound = useGame((s) => s.sound)
   const setG = useGame((s) => s.set)
   const unread = useGame((s) => s.unread)
   const online = useGame((s) => s.online)
+  const reduce = reducedMotion()
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-bg/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-14 max-w-[1500px] items-center gap-2 px-3 sm:px-5">
-        <Logo />
-        <nav className="ml-3 hidden lg:flex items-center gap-0.5">
-          {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end} onClick={() => sfx('click')}
-              className={({ isActive }) => cx('flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-[13px] font-bold transition', isActive ? 'bg-white/10 text-white' : 'text-mute hover:text-white')}>
-              <n.icon size={15} />{n.label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-          <span className="hidden md:flex items-center gap-1.5 text-[11px] text-mute"><span className="size-1.5 rounded-full bg-ok" />онлайн {online}</span>
+    <header className="pointer-events-none fixed inset-x-0 top-0 z-30 px-3 pt-3 sm:px-5">
+      <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-3">
+        <motion.div initial={reduce ? false : { y: -24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.6, ease: EASE }}
+          className="pointer-events-auto flex h-14 items-center gap-1 rounded-2xl border border-white/10 bg-[#0b1220]/70 py-2 pl-3 pr-2 shadow-[0_8px_32px_rgb(0_0_0/.45)] backdrop-blur-xl">
+          <Logo />
+          <nav className="ml-3 hidden items-center gap-0.5 lg:flex">
+            {NAV.map((n) => (
+              <NavLink key={n.to} to={n.to} end={n.end} onClick={() => sfx('click')}
+                className={({ isActive }) => cx('relative flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold transition-colors duration-300', isActive ? 'text-white' : 'text-mute hover:text-white')}>
+                {({ isActive }) => (
+                  <>
+                    {isActive && <motion.span layoutId="nav-pill" transition={{ duration: 0.5, ease: EASE }} className="absolute inset-0 rounded-xl bg-white/12 ring-1 ring-white/15" />}
+                    <n.icon size={15} className="relative" />
+                    <span className="relative">{n.label}</span>
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </nav>
+        </motion.div>
+        <motion.div initial={reduce ? false : { y: -24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.6, ease: EASE, delay: 0.08 }}
+          className="pointer-events-auto flex h-14 items-center gap-1.5 rounded-2xl border border-white/10 bg-[#0b1220]/70 px-2 shadow-[0_8px_32px_rgb(0_0_0/.45)] backdrop-blur-xl sm:gap-2">
+          <span className="hidden items-center gap-1.5 px-1 text-xs text-mute md:flex"><span className="size-1.5 rounded-full bg-ok" />онлайн {online}</span>
           <BonusChip />
-          <div className="glass flex h-10 items-center rounded-xl px-3" data-testid="balance" data-value={me.balance}>
-            <Money v={me.balance} className="display text-sm font-extrabold" size={15} />
+          <div className="flex h-10 items-center rounded-xl bg-white/6 px-3" data-testid="balance" data-value={me.balance}>
+            <Money v={me.balance} className="display text-sm font-bold" size={15} />
           </div>
-          <button aria-label="Звук" onClick={() => setG({ sound: !sound })} className="hidden sm:grid size-10 place-items-center rounded-xl glass text-mute hover:text-white">
+          <button aria-label="Звук" onClick={() => setG({ sound: !sound })} className="hidden size-10 place-items-center rounded-xl text-mute transition-colors duration-300 hover:bg-white/8 hover:text-white sm:grid">
             {sound ? <Volume2 size={16} /> : <VolumeX size={16} />}
           </button>
-          <button aria-label="Чат" data-testid="chat-toggle" onClick={() => setG({ chatOpen: !useGame.getState().chatOpen, unread: 0 })} className="relative grid size-10 place-items-center rounded-xl glass text-mute hover:text-white xl:hidden">
+          <button aria-label="Чат" data-testid="chat-toggle" onClick={() => setG({ chatOpen: !useGame.getState().chatOpen, unread: 0 })} className="relative grid size-10 place-items-center rounded-xl text-mute transition-colors duration-300 hover:bg-white/8 hover:text-white xl:hidden">
             <MessageCircle size={16} />
-            {unread > 0 && <span className="absolute -right-1 -top-1 grid min-w-4 h-4 place-items-center rounded-full bg-bad px-1 text-[9px] font-black text-white">{unread > 9 ? '9+' : unread}</span>}
+            {unread > 0 && <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-bad px-1 text-[10px] font-bold text-white">{unread > 9 ? '9+' : unread}</span>}
           </button>
-          <Link to="/profile" aria-label="Профиль" className="shrink-0"><Avatar n={me.avatar} size={36} /></Link>
-        </div>
+          <Link to="/profile" aria-label="Профиль" className="shrink-0 pr-0.5"><Avatar n={me.avatar} size={36} /></Link>
+        </motion.div>
       </div>
-      <FeedTicker />
     </header>
   )
 }
 
-/** Бегущая лента дропов всех игроков. */
+/** Лента дропов всех игроков: горизонтальная на узких экранах. */
 function FeedTicker() {
   const feed = useGame((s) => s.feed)
   const items = feed.filter((f) => f.kind === 'drop' || f.kind === 'upgrade' || f.kind === 'contract').slice(-24).reverse()
-  if (!items.length) return <div className="h-[46px] border-t border-line grid place-items-center text-[11px] text-mute">Здесь появятся дропы всех игроков</div>
   return (
-    <div className="flex h-[46px] items-center gap-1.5 overflow-hidden border-t border-line px-2" data-testid="feed">
-      <span className="flex shrink-0 items-center gap-1 pr-1 text-[10px] font-black uppercase tracking-wider text-bad"><span className="size-1.5 animate-pulse rounded-full bg-bad" />live</span>
+    <div className="flex h-[46px] items-center gap-1.5 overflow-hidden xl:hidden" data-testid="feed">
+      <span className="flex shrink-0 items-center gap-1 pr-1 text-xs font-semibold uppercase tracking-wider text-bad"><span className="size-1.5 animate-pulse rounded-full bg-bad" />live</span>
+      {items.length === 0 && <span className="text-xs text-mute">Здесь появятся дропы всех игроков</span>}
       <AnimatePresence initial={false}>
         {items.map((f) => {
           const d = f.data
           const def = CATALOG.itemById.get(d.item)
           return (
-            <motion.div key={f.id} layout initial={{ opacity: 0, x: -40, scale: 0.9 }} animate={{ opacity: 1, x: 0, scale: 1 }} transition={{ duration: 0.3 }}
+            <motion.div key={f.id} layout initial={{ opacity: 0, x: -40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, ease: EASE }}
               className="item-card flex h-9 shrink-0 items-center gap-1.5 !rounded-lg pl-1 pr-2" style={{ '--rc': rc(d.rarity) } as CSSProperties} title={`${f.nick}: ${def?.name}`}>
               <ItemArt i={{ item: d.item, phase: d.phase, fi: d.fi }} className="h-7 w-10" />
               <div className="leading-none">
-                <div className="max-w-20 truncate text-[10px] font-bold">{f.nick}</div>
-                <div className="text-[10px] font-extrabold text-gold">{fmtShort(d.price)}</div>
+                <div className="max-w-20 truncate text-xs font-semibold">{f.nick}</div>
+                <div className="text-xs font-bold text-gold">{fmtShort(d.price)}</div>
               </div>
             </motion.div>
           )
         })}
       </AnimatePresence>
     </div>
+  )
+}
+
+/** Вертикальная лента живых дропов слева (широкие экраны), как на кейс-сайтах. */
+function LiveRail() {
+  const feed = useGame((s) => s.feed)
+  const items = feed.filter((f) => f.kind === 'drop' || f.kind === 'upgrade' || f.kind === 'contract').slice(-14).reverse()
+  return (
+    <aside className="sticky top-[88px] my-4 hidden h-[calc(100dvh-104px)] w-[212px] shrink-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0b1220]/60 backdrop-blur-xl xl:flex" data-testid="live-rail">
+      <div className="flex items-center gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-bad"><span className="size-1.5 animate-pulse rounded-full bg-bad" />Живые дропы</div>
+      <div className="no-scrollbar flex-1 space-y-1.5 overflow-y-auto px-2 pb-2">
+        {items.length === 0 && <div className="px-2 py-6 text-center text-xs text-mute">Пока тихо. Открой кейс и засветись первым.</div>}
+        <AnimatePresence initial={false}>
+          {items.map((f) => {
+            const d = f.data
+            const def = CATALOG.itemById.get(d.item)
+            return (
+              <motion.div key={f.id} layout initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE }}
+                className="item-card flex items-center gap-2 !rounded-xl p-1.5" style={{ '--rc': rc(d.rarity) } as CSSProperties}>
+                <ItemArt i={{ item: d.item, phase: d.phase, fi: d.fi }} className="h-10 w-14 shrink-0" />
+                <div className="min-w-0 leading-tight">
+                  <div className="truncate text-xs font-semibold">{def?.skin}</div>
+                  <div className="truncate text-xs text-mute">{f.nick}</div>
+                  <div className="text-xs font-bold text-gold">{fmtShort(d.price)}</div>
+                </div>
+              </motion.div>
+            )
+          })}
+        </AnimatePresence>
+      </div>
+    </aside>
   )
 }
 
@@ -232,8 +275,8 @@ function BottomNav() {
   return (
     <>
       <MoreSheet open={more} onClose={() => setMore(false)} />
-      <nav className="safe-b fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/90 backdrop-blur-xl lg:hidden" data-testid="bottom-nav">
-        <div className="grid h-16 grid-cols-5">
+      <nav className="safe-b pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 pb-3 lg:hidden" data-testid="bottom-nav">
+        <div className="pointer-events-auto mx-auto grid h-16 max-w-md grid-cols-5 rounded-2xl border border-white/10 bg-[#0b1220]/80 shadow-[0_8px_32px_rgb(0_0_0/.55)] backdrop-blur-xl">
           {MOBILE.map((n) => (
             <NavLink key={n.to} to={n.to} end={n.end} onClick={() => sfx('click')}
               className={({ isActive }) => cx('flex flex-col items-center justify-center gap-1 text-[10px] font-bold', isActive ? 'text-gold' : 'text-mute')}>
@@ -254,24 +297,26 @@ export function Layout({ children }: { children: ReactNode }) {
   const setG = useGame((s) => s.set)
   const mismatch = useGame((s) => s.versionMismatch)
   return (
-    <div className="min-h-dvh">
+    <div className="min-h-dvh pt-[76px]">
       <Header />
       {mismatch && (
-        <div className="flex items-center justify-center gap-2 bg-bad/20 px-3 py-2 text-center text-xs font-semibold text-bad" data-testid="mismatch">
+        <div className="mx-3 mb-2 flex items-center justify-center gap-2 rounded-xl bg-bad/20 px-3 py-2 text-center text-xs font-semibold text-bad" data-testid="mismatch">
           <TriangleAlert size={14} />Экономика на сервере и в клиенте разной версии: выполни свежий supabase/seed.sql и обнови страницу.
         </div>
       )}
+      <div className="mx-auto max-w-[1500px] px-3 sm:px-5"><FeedTicker /></div>
       <div className="mx-auto flex max-w-[1500px] gap-5 px-3 sm:px-5">
-        <main className="min-w-0 flex-1 pb-24 pt-4 lg:pb-10">{children}</main>
-        <aside className="sticky top-[118px] my-4 hidden h-[calc(100dvh-134px)] w-[310px] shrink-0 flex-col overflow-hidden rounded-3xl glass xl:flex">
-          <div className="display flex items-center gap-2 px-4 py-3 text-sm font-bold"><MessageCircle size={15} className="text-gold" />Чат</div>
+        <LiveRail />
+        <main className="min-w-0 flex-1 pb-24 pt-2 lg:pb-10">{children}</main>
+        <aside className="sticky top-[88px] my-4 hidden h-[calc(100dvh-104px)] w-[310px] shrink-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0b1220]/60 backdrop-blur-xl xl:flex">
+          <div className="display flex items-center gap-2 px-4 py-3 text-sm font-semibold"><MessageCircle size={15} className="text-gold" />Чат</div>
           <Chat />
         </aside>
       </div>
       <AnimatePresence>
         {chatOpen && (
-          <motion.div className="fixed inset-0 z-50 flex flex-col bg-bg xl:hidden" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ duration: 0.22 }}>
-            <div className="display flex items-center justify-between border-b border-line px-4 py-3 text-sm font-bold">
+          <motion.div className="fixed inset-0 z-50 flex flex-col bg-bg xl:hidden" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ duration: 0.5, ease: EASE }}>
+            <div className="display flex items-center justify-between border-b border-line px-4 py-3 text-sm font-semibold">
               <span className="flex items-center gap-2"><MessageCircle size={15} className="text-gold" />Чат</span>
               <button aria-label="Закрыть чат" onClick={() => setG({ chatOpen: false })} className="grid size-9 place-items-center rounded-full hover:bg-white/10"><X size={18} /></button>
             </div>

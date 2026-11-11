@@ -5,8 +5,8 @@
 @theme {
   --font-sans: 'Manrope Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-display: 'Unbounded Variable', 'Manrope Variable', system-ui, sans-serif;
-  --color-bg: #07080d;
-  --color-panel: #10121b;
+  --color-bg: #060a12;
+  --color-panel: #0e1523;
   --color-line: rgb(255 255 255 / 0.08);
   --color-mute: #8b91a7;
   --color-gold: #ffc93c;
@@ -40,9 +40,9 @@ body::before {
   inset: 0;
   z-index: -2;
   background:
-    radial-gradient(900px 500px at 12% -5%, rgb(124 77 255 / 0.2), transparent 60%),
-    radial-gradient(800px 500px at 100% 0%, rgb(255 122 24 / 0.13), transparent 60%),
-    radial-gradient(900px 700px at 50% 110%, rgb(40 120 255 / 0.12), transparent 60%),
+    radial-gradient(1000px 560px at 15% -8%, rgb(40 110 255 / 0.22), transparent 60%),
+    radial-gradient(800px 500px at 100% 0%, rgb(120 70 255 / 0.14), transparent 60%),
+    radial-gradient(1000px 700px at 50% 115%, rgb(20 160 255 / 0.14), transparent 60%),
     var(--color-bg);
 }
 body::after {
