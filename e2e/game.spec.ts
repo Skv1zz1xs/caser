@@ -182,6 +182,28 @@ test('бонусы, батл-пасс, топ, профиль, честност�
   expect(errs).toEqual([])
 })
 
+test('краш: ставка, раунд доходит до падения, результат виден и проверяем', async ({ page }) => {
+  const errs = watch(page)
+  await login(page, 'Краш' + uniq())
+  await page.goto('/#/crash')
+  await expect(page.getByTestId('crash-stage')).toBeVisible()
+  await shot(page, '23-crash-bet')
+  // ставим на этапе приёма ставок (если раунд уже идёт, ждём следующий)
+  await expect(page.getByTestId('crash-bet')).toBeEnabled({ timeout: 60000 })
+  await page.getByTestId('crash-amount').fill('10')
+  await page.getByTestId('crash-auto').fill('1.05')
+  const before = await balance(page)
+  await page.getByTestId('crash-bet').click()
+  await expect.poll(() => balance(page)).toBe(before - 1000)
+  await shot(page, '24-crash-placed')
+  await expect(page.getByTestId('crash-result')).toBeVisible({ timeout: 150000 })
+  await shot(page, '25-crash-done')
+  await expect(page.getByTestId('crash-verify')).toBeVisible()
+  await expect(page.getByTestId('crash-bets')).toContainText('Краш')
+  await noHScroll(page)
+  expect(errs).toEqual([])
+})
+
 test('два игрока: общий чат и батл друг с другом', async ({ browser }) => {
   const vp = test.info().project.use.viewport!
   const ca = await browser.newContext({ viewport: vp })

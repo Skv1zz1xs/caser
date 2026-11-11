@@ -15,6 +15,7 @@ const Bonus = lazy(() => import('./pages/More').then((m) => ({ default: m.Bonus 
 const Coinflip = lazy(() => import('./pages/More').then((m) => ({ default: m.Coinflip })))
 const Pass = lazy(() => import('./pages/More').then((m) => ({ default: m.Pass })))
 const Top = lazy(() => import('./pages/More').then((m) => ({ default: m.Top })))
+const Crash = lazy(() => import('./pages/Crash'))
 const Fair = lazy(() => import('./pages/Profile').then((m) => ({ default: m.Fair })))
 const Profile = lazy(() => import('./pages/Profile').then((m) => ({ default: m.Profile })))
 const Gallery = lazy(() => import('./pages/Gallery'))
@@ -53,6 +54,7 @@ export default function App() {
             <Route path="/battles" element={<Battles />} />
             <Route path="/battle/:id" element={<BattleRoom />} />
             <Route path="/coinflip" element={<Coinflip />} />
+            <Route path="/crash" element={<Crash />} />
             <Route path="/pass" element={<Pass />} />
             <Route path="/top" element={<Top />} />
             <Route path="/bonus" element={<Bonus />} />
