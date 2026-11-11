@@ -198,9 +198,10 @@ function palette(item: ItemDef, r: () => number): Pal {
 
 const cache = new Map<string, string>()
 
-/** SVG предмета как строка. wear: 0..4 (потёртости с 3), phase: 0..3. */
-export function itemSvg(item: ItemDef, phase = 0, wear = 0): string {
-  const shape = SHAPES[item.shape] ?? SHAPES.pistol
+interface Skin { defs: string; fill: string; over: string; glint: string; scratches: string }
+
+/** Скин предмета как набор SVG-частей (поле 200×100 без силуэта). */
+function skinParts(item: ItemDef, phase: number, wear: number): Skin {
   const r = rng(hash(item.id))
   let pal = palette(item, r)
   let fin = FINISHES[Math.floor(r() * FINISHES.length)]
@@ -223,6 +224,28 @@ export function itemSvg(item: ItemDef, phase = 0, wear = 0): string {
     }
   }
   const glint = phase === 1 ? `<path d="M-20 100L60 0h26L6 100ZM70 100L150 0h10L80 100Z" fill="#fff" opacity=".32"/>` : ''
+  return { defs: f.defs, fill: f.fill, over: f.over ?? '', glint, scratches }
+}
+
+/** Текстура скина для 3D: плоское поле 200×100 (вместе с гравировкой-деталями силуэта). */
+export function skinTextureSvg(item: ItemDef, phase: number, wear: number): string {
+  const sk = skinParts(item, phase, wear)
+  const shape = SHAPES[item.shape] ?? SHAPES.pistol
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100" width="1024" height="512"><defs>${sk.defs}</defs>` +
+    `<rect width="200" height="100" fill="${sk.fill}"/>${sk.over}${sk.glint}${sk.scratches}` +
+    (shape.line ? `<path d="${shape.line}" fill="none" stroke="#000" stroke-opacity=".4" stroke-width="1.3" stroke-linecap="round"/>` : '') +
+    `</svg>`
+  )
+}
+
+/** SVG предмета как строка (плоская версия — запасной вариант, если WebGL недоступен). wear: 0..4, phase: 0..3. */
+export function itemSvg(item: ItemDef, phase = 0, wear = 0): string {
+  const shape = SHAPES[item.shape] ?? SHAPES.pistol
+  const sk = skinParts(item, phase, wear)
+  const f = { defs: sk.defs, fill: sk.fill, over: sk.over }
+  const glint = sk.glint
+  const scratches = sk.scratches
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100">` +
     `<defs>${f.defs}` +

@@ -5,6 +5,7 @@ import { COUNTER, PHASES, RARITIES, WEAR } from '../config/economy'
 import { CATALOG, type CaseDef } from '../shared/catalog'
 import { fmt, fmtShort, wearIndex } from '../shared/money'
 import { itemImage } from '../art/item'
+import { peekCase, peekItem, renderCase, renderItem } from '../art/three3d'
 import { useGame } from '../store/game'
 
 export const rc = (rarity: number) => RARITIES[rarity]?.color ?? '#888'
@@ -81,8 +82,39 @@ export function itemTitle(i: ItemLike) {
   return { weapon: d?.weapon ?? '?', skin: d?.skin ?? '?', phase: PHASES[i.phase]?.name ?? '', wear: WEAR[wearIndex(i.fi)] }
 }
 
+/** Загружать 3D-картинку только когда элемент рядом с экраном. */
+function useInView<E extends Element>(): [React.RefObject<E | null>, boolean] {
+  const ref = useRef<E>(null)
+  const [seen, setSeen] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || seen) return
+    if (typeof IntersectionObserver === 'undefined') return setSeen(true)
+    const io = new IntersectionObserver((e) => e.some((x) => x.isIntersecting) && (setSeen(true), io.disconnect()), { rootMargin: '300px' })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [seen])
+  return [ref, seen]
+}
+
+/** Предмет: сразу плоская SVG-заглушка, затем настоящая 3D-модель (кэшируется). */
 export function ItemArt({ i, className }: { i: { item: string; phase: number; fi: number }; className?: string }) {
-  return <img src={itemImage(i.item, i.phase, wearIndex(i.fi))} alt="" loading="lazy" draggable={false} className={cx('object-contain', className)} />
+  const wear = wearIndex(i.fi)
+  const spec = { item: i.item, phase: i.phase, wear }
+  const [ref, seen] = useInView<HTMLImageElement>()
+  const [src, setSrc] = useState<string>(() => peekItem(spec) ?? itemImage(i.item, i.phase, wear))
+  useEffect(() => {
+    const hit = peekItem(spec)
+    if (hit) return setSrc(hit)
+    setSrc(itemImage(i.item, i.phase, wear))
+    if (!seen) return
+    let alive = true
+    void renderItem(spec).then((u) => alive && u && setSrc(u))
+    return () => {
+      alive = false
+    }
+  }, [i.item, i.phase, wear >= 3 ? wear : 0, seen]) // eslint-disable-line react-hooks/exhaustive-deps
+  return <img ref={ref} src={src} alt="" draggable={false} className={cx('object-contain', className)} />
 }
 
 export function ItemCard({
@@ -119,48 +151,47 @@ export function ItemCard({
 
 /* ------------------------------ обложка кейса --------------------------- */
 export function CaseCover({ c, size = 120 }: { c: CaseDef; size?: number }) {
+  const [ref, seen] = useInView<HTMLDivElement>()
+  const [src, setSrc] = useState<string | null>(() => peekCase(c.id))
+  useEffect(() => {
+    const hit = peekCase(c.id)
+    if (hit) return setSrc(hit)
+    if (!seen) return
+    let alive = true
+    void renderCase(c.id).then((u) => alive && setSrc(u))
+    return () => {
+      alive = false
+    }
+  }, [c.id, seen])
+  const elite = c.category === 'elite'
+  return (
+    <div ref={ref} className="relative shrink-0" style={{ width: size, height: size }}>
+      <div className="absolute inset-[10%] rounded-full blur-2xl opacity-55" style={{ background: c.colors[0] }} />
+      {src ? (
+        <img src={src} alt="" draggable={false} className="relative size-full object-contain" style={{ filter: 'drop-shadow(0 10px 14px rgb(0 0 0 / .55))' }} />
+      ) : (
+        <FlatCase c={c} size={size} />
+      )}
+      {elite && <div className="absolute inset-0 shine rounded-2xl pointer-events-none" />}
+    </div>
+  )
+}
+
+/** Плоская обложка — пока грузится 3D или если WebGL недоступен. */
+function FlatCase({ c, size }: { c: CaseDef; size: number }) {
   const Icon = ((L as any)[c.icon] ?? L.Package) as L.LucideIcon
   const [a, b] = c.colors
-  const id = 'cc-' + c.id
-  const elite = c.category === 'elite'
-  const risk = c.category === 'risk'
   return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <div className="absolute inset-[8%] rounded-full blur-2xl opacity-60" style={{ background: a }} />
+    <div className="relative size-full">
       <svg viewBox="0 0 120 120" width={size} height={size} className="relative">
         <defs>
-          <linearGradient id={id + 'a'} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor={a} />
-            <stop offset="1" stopColor={b} />
-          </linearGradient>
-          <linearGradient id={id + 'b'} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#fff" stopOpacity=".35" />
-            <stop offset=".5" stopColor="#fff" stopOpacity="0" />
-            <stop offset="1" stopColor="#000" stopOpacity=".45" />
-          </linearGradient>
-          <pattern id={id + 'h'} width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <rect width="5" height="10" fill="#000" opacity=".35" />
-          </pattern>
+          <linearGradient id={'fc' + c.id} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor={a} /><stop offset="1" stopColor={b} /></linearGradient>
         </defs>
-        {/* крышка */}
-        <path d="M14 46L30 26h60l16 20Z" fill={`url(#${id}a)`} />
-        <path d="M14 46L30 26h60l16 20Z" fill="#000" opacity=".28" />
-        {/* корпус */}
-        <rect x="12" y="44" width="96" height="58" rx="8" fill={`url(#${id}a)`} />
-        {risk && <rect x="12" y="44" width="96" height="58" rx="8" fill={`url(#${id}h)`} />}
-        <rect x="12" y="44" width="96" height="58" rx="8" fill={`url(#${id}b)`} />
+        <path d="M14 46L30 26h60l16 20Z" fill={`url(#fc${c.id})`} opacity=".7" />
+        <rect x="12" y="44" width="96" height="58" rx="8" fill={`url(#fc${c.id})`} />
         <rect x="12" y="44" width="96" height="10" rx="5" fill="#000" opacity=".3" />
-        <rect x="24" y="44" width="7" height="58" fill="#000" opacity=".22" />
-        <rect x="89" y="44" width="7" height="58" fill="#000" opacity=".22" />
-        <rect x="12.5" y="44.5" width="95" height="57" rx="7.5" fill="none" stroke={elite ? '#ffe9a8' : '#fff'} strokeOpacity={elite ? 0.9 : 0.3} strokeWidth={elite ? 1.6 : 1} />
-        {/* замок */}
-        <rect x="50" y="38" width="20" height="16" rx="4" fill="#12141c" stroke={elite ? '#ffd76a' : '#fff'} strokeOpacity=".7" />
-        <circle cx="60" cy="46" r="2.5" fill={elite ? '#ffd76a' : '#fff'} />
       </svg>
-      <div className="absolute inset-x-0 top-[47%] bottom-[14%] grid place-items-center">
-        <Icon size={size * 0.3} color="#fff" strokeWidth={2} style={{ filter: 'drop-shadow(0 2px 6px rgb(0 0 0 / .6))' }} />
-      </div>
-      {elite && <div className="absolute inset-0 shine rounded-2xl pointer-events-none" />}
+      <div className="absolute inset-x-0 top-[47%] bottom-[14%] grid place-items-center"><Icon size={size * 0.28} color="#fff" strokeWidth={2} /></div>
     </div>
   )
 }
