@@ -133,3 +133,19 @@ img { -webkit-user-drag: none; user-select: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* живой размытый фон: цветные пятна медленно плывут (только transform, без filter) */
+.aurora { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.aurora i {
+  position: absolute; border-radius: 50%; will-change: transform; opacity: 0.55;
+  background: radial-gradient(circle, var(--c) 0%, transparent 68%);
+  animation: drift var(--d) cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+@keyframes drift { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(var(--x), var(--y), 0) scale(1.18); } }
+@keyframes float { from { transform: translateY(0) rotate(-1deg); } to { transform: translateY(-10px) rotate(1deg); } }
+.float { animation: float 3.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate; }
+@keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 22px color-mix(in srgb, var(--rc) 45%, transparent); } 50% { box-shadow: 0 0 46px color-mix(in srgb, var(--rc) 80%, transparent); } }
+.pulse-glow { animation: pulse-glow 1.8s ease-in-out infinite; }
+@keyframes win-pop { 0% { transform: scale(1); } 40% { transform: scale(1.14); } 100% { transform: scale(1.05); } }
+.win-pop { animation: win-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; z-index: 5; box-shadow: 0 0 34px var(--rc); }
+.panel-glass { background: rgb(11 18 32 / 0.55); border: 1px solid rgb(255 255 255 / 0.09); backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2); }

@@ -283,6 +283,9 @@ function paintMaterial(E: Engine, src: T.Material, skin: T.Texture, size: T.Vect
           float nz2 = fract(sin(dot(floor(q * 2.3), vec3(39.346, 11.135, 83.155))) * 24634.6345);
           float wearMask = smoothstep(1.0 - uWear * 1.6, 1.0, nz * 0.6 + nz2 * 0.4) * step(0.001, uWear);
           vec3 painted = zSkin * k;
+          // металлические блёстки лака
+          float fl = fract(sin(dot(floor(vOP * (150.0 / max(uS, 1e-3))), vec3(41.3, 17.7, 29.1))) * 43758.5453);
+          painted *= 1.0 + (fl - 0.5) * 0.22;
           painted = mix(painted, vec3(0.62, 0.64, 0.68), wearMask);
           zPaint *= 1.0;
           diffuseColor.rgb = mix(diffuseColor.rgb, painted, zPaint);
@@ -291,9 +294,10 @@ function paintMaterial(E: Engine, src: T.Material, skin: T.Texture, size: T.Vect
       )
       .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n metalnessFactor = mix(metalnessFactor, 0.3, zPaint * uGloss);')
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, 0.34, zPaint * uGloss * 0.7);')
+      .replace('#include <opaque_fragment>', 'float zFr = pow(1.0 - clamp(dot(normalize(vViewPosition), normal), 0.0, 1.0), 3.0);\n outgoingLight += zSkin * zFr * 0.3 * zPaint * uGloss;\n#include <opaque_fragment>')
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += zSkin * uGlow * zPaint;')
   }
-  std.customProgramCacheKey = () => 'skin-v2'
+  std.customProgramCacheKey = () => 'skin-v3'
   return mat
 }
 

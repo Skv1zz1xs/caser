@@ -48,7 +48,7 @@ const CellView = memo(function CellView({ cell, w, h, hide, win }: { cell: Cell;
   return (
     <div className="shrink-0 p-[3px]" style={{ width: w, height: h }}>
       <div
-        className={cx('item-card h-full w-full grid place-items-center', win && 'ring-2 ring-white/80')}
+        className={cx('item-card h-full w-full grid place-items-center', win && 'win-pop ring-2 ring-white/80')}
         style={{ '--rc': special ? '#ffc93c' : rc(cell.rarity) } as CSSProperties}
       >
         {special ? (

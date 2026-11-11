@@ -103,17 +103,18 @@ export default function CasePage() {
       <Confetti fire={fx.confetti} colors={fx.gold ? ['#ffe9a8', '#ffc93c', '#ff9a2e', '#ffffff'] : undefined} />
       {fx.flash && <div className="flash pointer-events-none fixed inset-0 z-40" style={{ background: `radial-gradient(circle at 50% 40%, ${fx.flash}, transparent 65%)` }} />}
 
-      <div className="flex items-center gap-3">
-        <button onClick={() => nav(-1)} aria-label="Назад" className="grid size-10 place-items-center rounded-full glass"><ChevronLeft size={18} /></button>
-        <CaseCover c={c} size={96} />
-        <div className="min-w-0 flex-1">
-          <h1 className="display truncate text-lg sm:text-2xl font-extrabold">{c.name}</h1>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-mute">
-            <span>{c.tagline}</span>
-            {!isFree && <span className="inline-flex items-center gap-1 text-ok"><ShieldCheck size={12} />RTP {(c.rtp * 100).toFixed(0)} %</span>}
+      <div className="panel-glass relative overflow-hidden rounded-3xl p-4 sm:p-5">
+        <div className="pointer-events-none absolute -right-10 -top-16 size-72 rounded-full opacity-40" style={{ background: `radial-gradient(circle, ${c.colors[0]}, transparent 68%)` }} />
+        <div className="relative flex items-center gap-3 sm:gap-5">
+          <button onClick={() => nav(-1)} aria-label="Назад" className="grid size-10 shrink-0 place-items-center self-start rounded-full bg-white/8 hover:bg-white/14"><ChevronLeft size={18} /></button>
+          <div className="float -my-2 shrink-0"><CaseCover c={c} size={stage === 'idle' ? 132 : 100} /></div>
+          <div className="min-w-0 flex-1">
+            <h1 className="display truncate text-xl sm:text-3xl font-extrabold">{c.name}</h1>
+            <div className="mt-1 text-xs sm:text-sm text-mute">{c.tagline}</div>
+            {!isFree && <div className="mt-2 inline-flex items-center gap-1 rounded-lg bg-ok/12 px-2 py-1 text-xs font-semibold text-ok"><ShieldCheck size={12} />RTP {(c.rtp * 100).toFixed(0)} %</div>}
           </div>
+          {!isFree && <Money v={c.price} className="display shrink-0 rounded-2xl bg-white/8 px-3 py-2 text-base sm:text-2xl font-extrabold text-gold" size={20} />}
         </div>
-        {!isFree && <Money v={c.price} className="display text-base sm:text-xl font-extrabold text-gold" size={18} />}
       </div>
 
       <Section className="!p-3 sm:!p-4">
@@ -135,11 +136,11 @@ export default function CasePage() {
                 <WinCard d={drops[0]} casePrice={c.price} onSell={() => sell([drops[0].id])} />
               ) : (
                 <>
-                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                  <div className="flex flex-wrap justify-center gap-2">
                     {drops.map((d) => (
-                      <ItemCard key={d.id} i={d} compact footer={
+                      <div key={d.id} className="w-[30%] min-w-[104px] max-w-[190px] sm:w-[18%]"><ItemCard i={d} compact footer={
                         <button onClick={() => sell([d.id])} className="mt-1 w-full rounded-lg bg-white/10 py-1 text-[10px] font-bold hover:bg-white/20">Продать</button>
-                      } />
+                      } /></div>
                     ))}
                   </div>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
@@ -226,7 +227,7 @@ function WinCard({ d, casePrice, onSell }: { d: Item; casePrice: number; onSell:
   return (
     <motion.div
       initial={{ scale: 0.85, rotateY: gold ? 90 : 0 }} animate={{ scale: 1, rotateY: 0 }} transition={{ type: 'spring', stiffness: 220, damping: 18 }}
-      className={cx('relative mx-auto flex max-w-md items-center gap-4 rounded-3xl p-4 item-card', gold && 'shine')} style={{ '--rc': rc(d.rarity) } as CSSProperties}
+      className={cx('relative mx-auto flex max-w-md items-center gap-4 rounded-3xl p-4 item-card pulse-glow', gold && 'shine')} style={{ '--rc': rc(d.rarity) } as CSSProperties}
     >
       <ItemArt i={d} className="h-24 w-36 sm:h-28 sm:w-44" />
       <div className="min-w-0 flex-1">

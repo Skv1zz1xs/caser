@@ -292,12 +292,26 @@ function BottomNav() {
   )
 }
 
+function PageFx({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation()
+  return (
+    <motion.div key={pathname} initial={reducedMotion() ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EASE }}>
+      {children}
+    </motion.div>
+  )
+}
+
 export function Layout({ children }: { children: ReactNode }) {
   const chatOpen = useGame((s) => s.chatOpen)
   const setG = useGame((s) => s.set)
   const mismatch = useGame((s) => s.versionMismatch)
   return (
     <div className="min-h-dvh pt-[76px]">
+      <div className="aurora" aria-hidden>
+        <i style={{ '--c': 'rgb(60 110 255 / .5)', '--d': '22s', '--x': '120px', '--y': '80px', left: '-10%', top: '-15%', width: '60vw', height: '60vw' } as CSSProperties} />
+        <i style={{ '--c': 'rgb(150 70 255 / .4)', '--d': '28s', '--x': '-140px', '--y': '120px', right: '-15%', top: '5%', width: '55vw', height: '55vw' } as CSSProperties} />
+        <i style={{ '--c': 'rgb(20 190 255 / .35)', '--d': '34s', '--x': '90px', '--y': '-100px', left: '25%', bottom: '-30%', width: '65vw', height: '65vw' } as CSSProperties} />
+      </div>
       <Header />
       {mismatch && (
         <div className="mx-3 mb-2 flex items-center justify-center gap-2 rounded-xl bg-bad/20 px-3 py-2 text-center text-xs font-semibold text-bad" data-testid="mismatch">
@@ -307,7 +321,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <div className="mx-auto max-w-[1500px] px-3 sm:px-5"><FeedTicker /></div>
       <div className="mx-auto flex max-w-[1500px] gap-5 px-3 sm:px-5">
         <LiveRail />
-        <main className="min-w-0 flex-1 pb-24 pt-2 lg:pb-10">{children}</main>
+        <main className="min-w-0 flex-1 pb-24 pt-2 lg:pb-10"><PageFx>{children}</PageFx></main>
         <aside className="sticky top-[88px] my-4 hidden h-[calc(100dvh-104px)] w-[310px] shrink-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0b1220]/60 backdrop-blur-xl xl:flex">
           <div className="display flex items-center gap-2 px-4 py-3 text-sm font-semibold"><MessageCircle size={15} className="text-gold" />Чат</div>
           <Chat />
