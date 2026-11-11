@@ -886,6 +886,10 @@ begin
       select (p.stats ->> 'best_drop')::bigint v, jsonb_build_object('nick', p.nick, 'avatar', p.avatar, 'level', game.level_of(p.xp),
         'value', (p.stats ->> 'best_drop')::bigint, 'item', p.best -> 0) x
       from profiles p where coalesce((p.stats ->> 'best_drop')::bigint, 0) > 0 order by 1 desc limit 50) t),
+    'tonight', (select coalesce(jsonb_agg(x order by v desc), '[]'::jsonb) from (
+      select (f.data ->> 'price')::bigint v, jsonb_build_object('nick', f.nick, 'avatar', f.avatar, 'kind', f.kind, 'data', f.data, 'at', game.ms(f.created_at)) x
+      from feed f where f.kind in ('drop', 'upgrade', 'contract') and f.created_at > now() - interval '12 hours'
+      order by 1 desc limit 20) t),
     'battles', (select coalesce(jsonb_agg(x order by v desc), '[]'::jsonb) from (
       select (p.stats ->> 'battle_winnings')::bigint v, jsonb_build_object('nick', p.nick, 'avatar', p.avatar, 'level', game.level_of(p.xp),
         'value', (p.stats ->> 'battle_winnings')::bigint, 'wins', coalesce((p.stats ->> 'battle_wins')::bigint, 0)) x

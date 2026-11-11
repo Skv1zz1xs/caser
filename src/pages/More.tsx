@@ -9,7 +9,7 @@ import { fmt } from '../shared/money'
 import { rpc, type Coinflip as Flip, type Me } from '../lib/api'
 import { applyMe, useGame } from '../store/game'
 import { sfx } from '../audio/sfx'
-import { Avatar, Bar, Btn, CaseCover, Empty, ItemArt, Money, Section, cx, mmss, useNow } from '../components/ui'
+import { Avatar, Bar, Btn, CaseCover, Empty, ItemArt, ItemCard, Modal, Money, Section, cx, mmss, useNow } from '../components/ui'
 
 /* =============================== БОНУСЫ ================================= */
 export function Bonus() {
@@ -171,12 +171,13 @@ export function Pass() {
 /* ================================ ТОП =================================== */
 export function Top() {
   const me = useGame((s) => s.me)!
-  const [tab, setTab] = useState<'balance' | 'best' | 'battles'>('balance')
+  const [tab, setTab] = useState<'tonight' | 'balance' | 'best' | 'battles'>('tonight')
+  const [replay, setReplay] = useState<any>(null)
   const [data, setData] = useState<Record<string, any[]> | null>(null)
   useEffect(() => {
     void rpc('leaderboard').then(setData).catch(() => setData({ balance: [], best: [], battles: [] }))
   }, [])
-  const tabs = [{ id: 'balance', name: 'Состояние' }, { id: 'best', name: 'Лучший дроп' }, { id: 'battles', name: 'Выигрыши в батлах' }] as const
+  const tabs = [{ id: 'tonight', name: 'Залёт вечера' }, { id: 'balance', name: 'Состояние' }, { id: 'best', name: 'Лучший дроп' }, { id: 'battles', name: 'Выигрыши в батлах' }] as const
   const rows = data?.[tab] ?? []
   return (
     <div className="space-y-4">
@@ -185,9 +186,16 @@ export function Top() {
         {tabs.map((t) => <button key={t.id} onClick={() => setTab(t.id)} className={cx('h-10 shrink-0 rounded-xl px-4 text-sm font-bold', tab === t.id ? 'bg-white/14 text-gold' : 'glass text-mute')}>{t.name}</button>)}
       </div>
       <Section className="!p-2">
-        {!data ? <div className="h-40 animate-pulse rounded-2xl bg-white/5" /> : rows.length === 0 ? <Empty icon={Trophy}>Пока пусто — будь первым</Empty> : (
+        {!data ? <div className="h-40 animate-pulse rounded-2xl bg-white/5" /> : rows.length === 0 ? <Empty icon={Trophy}>{tab === 'tonight' ? 'Сегодня ещё никто не залетел. Открой кейс — вдруг ты первый.' : 'Пока пусто — будь первым'}</Empty> : (
           <div className="divide-y divide-line" data-testid="top-list">
-            {rows.map((r, i) => (
+            {tab === 'tonight' ? rows.map((r: any, i: number) => (
+              <button key={i} onClick={() => setReplay(r)} data-testid="tonight-row" className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-white/5">
+                <span className={cx('display w-7 text-center text-sm font-black', i === 0 ? 'text-gold' : 'text-mute')}>{i + 1}</span>
+                <ItemArt i={r.data} className="h-10 w-16 shrink-0" />
+                <div className="min-w-0 flex-1"><div className="truncate text-sm font-bold">{r.nick}</div><div className="truncate text-[11px] text-mute">{r.kind === 'drop' ? 'выбил' : r.kind === 'upgrade' ? 'апгрейд' : 'контракт'}{r.data.x ? ` · x${(r.data.x / 100).toFixed(r.data.x >= 10000 ? 0 : 1)}` : ''}</div></div>
+                <Money v={r.data.price} short className="display text-sm font-extrabold" />
+              </button>
+            )) : rows.map((r, i) => (
               <Link to={'/profile/' + encodeURIComponent(r.nick)} key={r.nick} className={cx('flex items-center gap-3 px-3 py-2.5 hover:bg-white/5', r.nick === me.nick && 'bg-gold/8')}>
                 <span className={cx('display w-7 text-center text-sm font-black', i === 0 ? 'text-gold' : i === 1 ? 'text-r0' : i === 2 ? 'text-fire' : 'text-mute')}>{i + 1}</span>
                 <Avatar n={r.avatar} size={34} />
@@ -199,6 +207,14 @@ export function Top() {
           </div>
         )}
       </Section>
+      <Modal open={!!replay} onClose={() => setReplay(null)} title={replay ? `${replay.nick} · залёт` : ''}>
+        {replay && (
+          <div className="mx-auto max-w-xs" data-testid="replay">
+            <ItemCard i={replay.data} />
+            <p className="mt-3 text-center text-xs text-mute">{new Date(replay.at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })} · все дропы можно перепроверить на странице «Честность»</p>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

@@ -161,6 +161,7 @@ test('бонусы, батл-пасс, топ, профиль, честност�
   await shot(page, '16-coinflip')
 
   await page.goto('/#/top')
+  await page.getByRole('button', { name: 'Состояние' }).click()
   await expect(page.getByTestId('top-list')).toContainText(nick)
   await shot(page, '17-top')
   await page.goto('/#/profile')
