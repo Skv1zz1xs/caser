@@ -218,8 +218,11 @@ test('два игрока: общий чат и батл друг с друго�
   await a.getByTestId('pick-sigma').click()
   await a.getByTestId('battle-create').click()
   await expect(a.getByTestId('battle-room')).toHaveAttribute('data-status', 'open')
+  const battleUrl = a.url() // ссылка на комнату — как её отправили бы другу
   await b.goto('/#/battles')
-  await b.getByTestId('battle-row').first().click()
+  await expect(b.getByTestId('battle-row').first()).toBeVisible() // лобби видно в общем списке
+  await b.goto(battleUrl)
+  await expect(b.getByTestId('battle-room')).toHaveAttribute('data-status', 'open')
   await shot(b, '21-lobby')
   await b.getByTestId('join-1').click()
   await expect(b.getByTestId('battle-room')).toHaveAttribute('data-status', 'done')
