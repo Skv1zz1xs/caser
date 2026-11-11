@@ -228,6 +228,13 @@ export const BATTLE_MODES = [
 /** Победитель забирает банк (2 ставки) минус rakePct %. */
 export const COINFLIP = { minStake: 10, maxStake: 10_000_000, rakePct: 4, flipMs: 4500 }
 
+/* ----------------------------- КРАШ -------------------------------------- */
+/**
+ * Общий раунд: ракета растёт по кривой x = e^(growthPerSec × секунды), падает в заранее выбранной точке.
+ * Шанс дожить до x равен (100 − edgePct) % / x, поэтому возврат при любой стратегии = 100 − edgePct %.
+ */
+export const CRASH = { minBet: 10, maxBet: 100_000, edgePct: 4, growthPerSec: 0.07, betMs: 8000, pauseMs: 4000, maxAuto: 100 }
+
 /* ----------------------------- БОНУСЫ ------------------------------------ */
 export const BONUS = {
   /** стартовый баланс нового игрока */
@@ -251,7 +258,7 @@ export const PASS = {
   seasonId: 's1',
   seasonName: 'Сезон 1 · Первый залёт',
   /** XP за действия */
-  xp: { open: 5, upgrade: 8, contract: 12, battle: 20, coinflip: 6 },
+  xp: { open: 5, upgrade: 8, contract: 12, battle: 20, coinflip: 6, crash: 6 },
   /** XP на уровень N (с 1): base + step × (N − 1) */
   levelXp: { base: 150, step: 30 },
   /** Награды по уровням (40 уровней). case: [id кейса, сколько бесплатных открытий]. */

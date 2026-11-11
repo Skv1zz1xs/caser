@@ -26,7 +26,7 @@ begin
          'login','logout','sync','get_inventory','open_case','sell_items','sell_below','chat_send',
          'fair_state','fair_rotate','fair_set_client_seed','fair_rolls','leaderboard','get_profile','set_avatar',
          'upgrade','contract','battle_create','battle_join','battle_add_bot','battle_leave','get_battle',
-         'coinflip_create','coinflip_join','coinflip_bot','coinflip_cancel',
+         'coinflip_create','coinflip_join','coinflip_bot','coinflip_cancel','crash_state','crash_bet','crash_cashout',
          'claim','bonus_free_case','bonus_daily','bonus_second_chance','promo_redeem','rain_join']))
   loop
     execute 'drop function if exists ' || r.sig || ' cascade';
@@ -143,6 +143,29 @@ create table if not exists public.auth_profiles (
   profile_id  uuid not null references public.profiles (id) on delete cascade,
   created_at  timestamptz not null default now(),
   primary key (auth_id, profile_id)
+);
+
+create table if not exists public.crash_rounds (
+  id          bigint generated always as identity primary key,
+  status      text not null default 'bet',    -- bet | run | done
+  seed_id     bigint not null,
+  seed_hash   text not null,
+  crash_pm    int not null default 1000,      -- точка падения, промилле; клиенту не отдаётся, пока раунд не закончился
+  bet_ends_at timestamptz not null,
+  started_at  timestamptz,
+  crashed_at  timestamptz,
+  server_seed text,
+  created_at  timestamptz not null default now()
+);
+
+create table if not exists public.crash_bets (
+  round_id    bigint not null references public.crash_rounds (id) on delete cascade,
+  profile_id  uuid not null references public.profiles (id) on delete cascade,
+  amount      bigint not null,
+  auto_pm     int,
+  cash_pm     int,
+  payout      bigint,
+  primary key (round_id, profile_id)
 );
 
 create table if not exists public.seeds (
@@ -281,7 +304,7 @@ create index if not exists cfg_outcomes_pool_idx on public.cfg_outcomes (rarity,
 do $$
 declare t text;
 begin
-  foreach t in array array['profiles','feed','chat','battles','coinflips','rain','sessions','auth_profiles','seeds','secrets','rolls','items',
+  foreach t in array array['profiles','feed','chat','battles','coinflips','rain','sessions','auth_profiles','crash_rounds','crash_bets','seeds','secrets','rolls','items',
                            'battle_results','pending_credits','counters','claims','recipe_uses','rain_joins',
                            'cfg_kv','cfg_cases','cfg_outcomes']
   loop
@@ -1652,6 +1675,118 @@ begin
   return jsonb_build_object('rain', game.rain_view(v_pid));
 end $$;
 
+
+-- =====================================================================================
+--  КРАШ: общий раунд. Точка падения выбирается из HMAC(server seed, 'crash:<id>'), хеш сида виден заранее.
+-- =====================================================================================
+-- Точка падения в промилле. Целочисленно, зеркало src/shared/crash.ts.
+create function game.crash_pm(p_hex text) returns int language sql stable as $$
+  select least(1000000, greatest(1000,
+    ((100 - (game.cfg('crash') ->> 'edge')::bigint) * 10 * 4503599627370496 / (4503599627370496 - game.hex_int(substr(p_hex, 1, 13))))::int))
+$$;
+
+-- Множитель (промилле) через p_ms мс после старта.
+create function game.crash_mult(p_ms numeric) returns int language sql stable as $$
+  select floor(1000 * exp((game.cfg('crash') ->> 'growth')::numeric * p_ms / 1000))::int
+$$;
+
+-- Двигает состояние раунда по времени: ставки → полёт → падение → пауза → новый раунд.
+create function game.crash_tick() returns void language plpgsql as $$
+declare c jsonb := game.cfg('crash'); r public.crash_rounds; v_seed bigint; v_srv text; v_id bigint; b record; v_pay bigint; i int;
+begin
+  if c is null then return; end if;
+  perform pg_advisory_xact_lock(770188);
+  for i in 1..3 loop
+    select * into r from public.crash_rounds order by id desc limit 1;
+    if r.id is null or (r.status = 'done' and now() >= r.crashed_at + make_interval(secs => (c ->> 'pause_ms')::numeric / 1000)) then
+      v_seed := game.new_seed(null);
+      select server_seed into v_srv from public.seeds where id = v_seed;
+      insert into public.crash_rounds (seed_id, seed_hash, bet_ends_at)
+        values (v_seed, game.sha_hex(v_srv), now() + make_interval(secs => (c ->> 'bet_ms')::numeric / 1000)) returning id into v_id;
+      update public.crash_rounds set crash_pm = game.crash_pm(game.hmac_hex(v_srv, 'crash:' || v_id)) where id = v_id;
+    elsif r.status = 'bet' and now() >= r.bet_ends_at then
+      update public.crash_rounds set status = 'run', started_at = bet_ends_at,
+        crashed_at = bet_ends_at + make_interval(secs => ln(crash_pm / 1000.0) / (c ->> 'growth')::numeric)
+        where id = r.id;
+    elsif r.status = 'run' and now() >= r.crashed_at then
+      update public.crash_rounds set status = 'done', server_seed = (select server_seed from public.seeds where id = r.seed_id) where id = r.id;
+      update public.seeds set revealed_at = now() where id = r.seed_id;
+      -- автовывод: сработал, если выбранный множитель не выше точки падения
+      for b in select * from public.crash_bets where round_id = r.id and cash_pm is null and auto_pm is not null and auto_pm <= r.crash_pm loop
+        v_pay := b.amount * b.auto_pm / 1000;
+        update public.crash_bets set cash_pm = b.auto_pm, payout = v_pay where round_id = r.id and profile_id = b.profile_id;
+        update public.profiles set balance = balance + v_pay where id = b.profile_id;
+        perform game.bump(b.profile_id, jsonb_build_object('crash_wins', 1, 'crash_won', v_pay - b.amount));
+      end loop;
+    else
+      exit;
+    end if;
+  end loop;
+end $$;
+
+create function public.crash_state() returns jsonb
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
+declare v_pid uuid := game.pid(); r public.crash_rounds; v_my jsonb;
+begin
+  perform game.crash_tick();
+  select * into r from crash_rounds order by id desc limit 1;
+  if r.id is null then return jsonb_build_object('now', game.ms(now()), 'round', null); end if;
+  select jsonb_build_object('amount', amount, 'auto_pm', auto_pm, 'cash_pm', cash_pm, 'payout', payout) into v_my
+    from crash_bets where round_id = r.id and profile_id = v_pid;
+  return jsonb_build_object(
+    'now', game.ms(now()),
+    'cfg', jsonb_build_object('min', game.cfg('crash') -> 'min', 'max', game.cfg('crash') -> 'max', 'growth', game.cfg('crash') -> 'growth', 'max_auto', game.cfg('crash') -> 'max_auto'),
+    'round', jsonb_build_object('id', r.id, 'status', r.status, 'seed_hash', r.seed_hash, 'bet_ends_at', game.ms(r.bet_ends_at),
+      'started_at', game.ms(r.started_at),
+      'crashed_at', case when r.status = 'done' then game.ms(r.crashed_at) end,
+      'crash_pm', case when r.status = 'done' then r.crash_pm end,
+      'seed', case when r.status = 'done' then r.server_seed end),
+    'my', v_my,
+    'bets', (select coalesce(jsonb_agg(jsonb_build_object('nick', p.nick, 'avatar', p.avatar, 'amount', b.amount, 'cash_pm', b.cash_pm, 'payout', b.payout) order by b.amount desc), '[]'::jsonb)
+             from crash_bets b join profiles p on p.id = b.profile_id where b.round_id = r.id),
+    'history', (select coalesce(jsonb_agg(h.crash_pm order by h.id desc), '[]'::jsonb) from (select id, crash_pm from crash_rounds where status = 'done' order by id desc limit 14) h));
+end $$;
+
+create function public.crash_bet(p_amount bigint, p_auto int default null) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
+declare v_pid uuid := game.pid(); c jsonb := game.cfg('crash'); r public.crash_rounds; p public.profiles;
+begin
+  perform game.crash_tick();
+  select * into r from crash_rounds order by id desc limit 1;
+  if r.id is null or r.status <> 'bet' or now() >= r.bet_ends_at then raise exception 'Ставки сейчас не принимаются. Дождись следующего раунда'; end if;
+  if p_amount is null or p_amount < (c ->> 'min')::bigint or p_amount > (c ->> 'max')::bigint then
+    raise exception 'Ставка от % до % монет', (c ->> 'min')::bigint / 100, (c ->> 'max')::bigint / 100;
+  end if;
+  if p_auto is not null and (p_auto < 1010 or p_auto > (c ->> 'max_auto')::int) then raise exception 'Автовывод от x1.01 до x%', (c ->> 'max_auto')::int / 1000; end if;
+  p := game.lock(v_pid);
+  if exists (select 1 from crash_bets where round_id = r.id and profile_id = v_pid) then raise exception 'Ты уже поставил в этом раунде'; end if;
+  if p.balance < p_amount then raise exception 'Недостаточно монет'; end if;
+  update profiles set balance = balance - p_amount, xp = xp + ((game.cfg('pass') #>> '{xp,crash}')::int * game.xpm()) where id = v_pid;
+  insert into crash_bets (round_id, profile_id, amount, auto_pm) values (r.id, v_pid, p_amount, p_auto);
+  perform game.bump(v_pid, jsonb_build_object('crash_bets', 1, 'spent', p_amount));
+  return jsonb_build_object('ok', true, 'me', game.after(v_pid));
+end $$;
+
+create function public.crash_cashout() returns jsonb
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
+declare v_pid uuid := game.pid(); r public.crash_rounds; b public.crash_bets; v_m int; v_pay bigint;
+begin
+  perform game.lock(v_pid);
+  perform game.crash_tick();
+  select * into r from crash_rounds order by id desc limit 1;
+  select * into b from crash_bets where round_id = r.id and profile_id = v_pid for update;
+  if not found then raise exception 'У тебя нет ставки в этом раунде'; end if;
+  if b.cash_pm is not null then raise exception 'Ты уже забрал выигрыш'; end if;
+  if r.status = 'bet' then raise exception 'Раунд ещё не начался'; end if;
+  if r.status <> 'run' then raise exception 'Поздно: ракета уже упала'; end if;
+  v_m := game.crash_mult(extract(epoch from (now() - r.started_at)) * 1000);
+  v_pay := b.amount * v_m / 1000;
+  update crash_bets set cash_pm = v_m, payout = v_pay where round_id = r.id and profile_id = v_pid;
+  update profiles set balance = balance + v_pay where id = v_pid;
+  perform game.bump(v_pid, jsonb_build_object('crash_wins', 1, 'crash_won', v_pay - b.amount));
+  return jsonb_build_object('ok', true, 'mult', v_m, 'payout', v_pay, 'me', game.after(v_pid));
+end $$;
+
 -- =====================================================================================
 --  ДОСТУП К ФУНКЦИЯМ: только вошедшим (authenticated), анонимной роли — ничего
 -- =====================================================================================
@@ -1665,7 +1800,7 @@ begin
       'login','logout','sync','get_inventory','open_case','sell_items','sell_below','chat_send',
       'fair_state','fair_rotate','fair_set_client_seed','fair_rolls','leaderboard','get_profile','set_avatar',
       'upgrade','contract','battle_create','battle_join','battle_add_bot','battle_leave','get_battle',
-      'coinflip_create','coinflip_join','coinflip_bot','coinflip_cancel',
+      'coinflip_create','coinflip_join','coinflip_bot','coinflip_cancel','crash_state','crash_bet','crash_cashout',
       'claim','bonus_free_case','bonus_daily','bonus_second_chance','promo_redeem','rain_join'])
   loop
     execute 'revoke all on function ' || r.sig || ' from public, anon';
