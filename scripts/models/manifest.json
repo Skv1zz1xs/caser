@@ -1,0 +1,167 @@
+{
+  "rifle": [
+    {
+      "src": "rifleB",
+      "uid": "9084c3bae8224d338103997bc3101480"
+    },
+    {
+      "src": "akm",
+      "uid": "409c8845a8034f92b860fdff752dc2dc"
+    },
+    {
+      "src": "ak47s",
+      "uid": "07065c43bdb2459ca8faf7a99b075b9b"
+    }
+  ],
+  "carbine": [
+    {
+      "src": "carbine",
+      "uid": "a747ebdbb3d941ecb09b459c62865a75"
+    }
+  ],
+  "bullpup": [
+    {
+      "src": "groza",
+      "uid": "402d762908ec4759bf919279d51b0de5"
+    }
+  ],
+  "dmr": [
+    {
+      "src": "dmr",
+      "uid": "c52bc2a8ddaa47caa34e94d69ff72d96"
+    }
+  ],
+  "sniper": [
+    {
+      "src": "sniperA",
+      "uid": "45c99509f1ee4c2a8c9c3336d3e2ff5a"
+    },
+    {
+      "src": "kar98",
+      "uid": "e88c90c8e203401fa28e8f4ef03e657f"
+    }
+  ],
+  "lmg": [
+    {
+      "src": "lmg",
+      "uid": "8c24d7374ea64bdab1c30f49c69d5ed8"
+    }
+  ],
+  "shotgun": [
+    {
+      "src": "shotgun",
+      "uid": "7e472e24152246708cac8b6f1613c7a8"
+    }
+  ],
+  "pistol": [
+    {
+      "src": "pistolA",
+      "uid": "cabde59f5cf24effaf80536e35d04e95",
+      "drop": [
+        "Bullet_low",
+        "BulletCase_low",
+        "BulletThrow_low"
+      ]
+    },
+    {
+      "src": "pistolB",
+      "uid": "12b70050f764456fb4db69a37a96c505"
+    }
+  ],
+  "revolver": [
+    {
+      "src": "revolver",
+      "uid": "038416d7fb2649e2833d5989b47885db"
+    },
+    {
+      "src": "python",
+      "uid": "3def6e3980e64dfa832f298004ce1b94"
+    },
+    {
+      "src": "navy",
+      "uid": "c254bb8ee01a4d9db9e6bbdc652d6c11"
+    }
+  ],
+  "smg": [
+    {
+      "src": "smg",
+      "uid": "2a9ce66fe96643fc8f20927401e5054c",
+      "keep": [
+        "MP5"
+      ]
+    }
+  ],
+  "pdw": [
+    {
+      "src": "krsv",
+      "uid": "609166faf8e5416f957c88e0af657e09"
+    }
+  ],
+  "claw": [
+    {
+      "src": "knifeA",
+      "uid": "dfd7606f189a413681305a39b8841ce8"
+    },
+    {
+      "src": "knifeB",
+      "uid": "bd5b24edd9c54f6a908490f246cb45ff"
+    }
+  ],
+  "butterfly": [
+    {
+      "src": "bali2",
+      "uid": "7b32e7b8fa7345fa8424e254000e117c",
+      "keep": [
+        "balisong_open"
+      ]
+    }
+  ],
+  "bayonet": [
+    {
+      "src": "buck",
+      "uid": "e854d824feb14900b6963729ae122f55",
+      "keep": [
+        "LP_Base_Tris"
+      ]
+    },
+    {
+      "src": "bowie",
+      "uid": "793322ff35f9436b8c88fc56009c690e"
+    }
+  ],
+  "dagger": [
+    {
+      "src": "daggerA",
+      "uid": "f5236789a5094b8fa1d800ffdb29dfa6"
+    },
+    {
+      "src": "daggerB",
+      "uid": "05c80a40e6754e0583ebce3bf285c545"
+    }
+  ],
+  "cleaver": [
+    {
+      "src": "cleaverA",
+      "uid": "489e7231712a4c008bdc7a6cc4da06cc",
+      "keep": [
+        "Kukri_Original"
+      ]
+    },
+    {
+      "src": "cleaverB",
+      "uid": "340a3bed238f48b0aa169c38e1e75066"
+    }
+  ],
+  "glove": [
+    {
+      "src": "glovesA",
+      "uid": "deb1d415457049c18e11f1d1fbae1132"
+    }
+  ],
+  "gauntlet": [
+    {
+      "src": "glovesB",
+      "uid": "fda69c63c472449f8ded80a9e6d91562"
+    }
+  ]
+}
