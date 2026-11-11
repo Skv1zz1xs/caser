@@ -3,22 +3,23 @@ import { CaseCover, ItemArt } from '../components/ui'
 
 /** Служебная страница #/gallery: проверка 3D-графики. */
 export default function Gallery() {
-  const picks = ['sigma', 'klinok', 'hvat', 'dota', 'absolut', 'gta'].flatMap((id) => {
-    const c = CATALOG.caseById.get(id)!
-    const seen = new Set<string>()
-    return c.outcomes.filter((o) => (seen.has(o.itemId) ? false : (seen.add(o.itemId), true))).slice(-9).map((o) => ({ o, c }))
-  })
+  const byShape = new Map<string, { item: string; phase: number }[]>()
+  for (const c of CATALOG.cases)
+    for (const o of c.outcomes) {
+      const it = CATALOG.itemById.get(o.itemId)!
+      const list = byShape.get(it.shape) ?? []
+      if (list.length < 3 && !list.some((x) => x.item === it.id && x.phase === o.phase)) list.push({ item: it.id, phase: o.phase })
+      byShape.set(it.shape, list)
+    }
+  const cells = [...byShape.entries()].flatMap(([, l]) => l.slice(0, 2))
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-6" data-testid="gallery-cases">
         {['sigma', 'gta', 'klinok', 'r5050', 'absolut', 'meloch'].map((id) => <CaseCover key={id} c={CATALOG.caseById.get(id)!} size={220} />)}
       </div>
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-6" data-testid="gallery-items">
-        {picks.map(({ o }, i) => (
-          <div key={i} className="item-card p-1"><ItemArt i={{ item: o.itemId, phase: o.phase, fi: i % 2 ? 9000 : 2000 }} className="h-24 w-full" /></div>
-        ))}
-        {CATALOG.cases.find((c) => c.id === 'klinok')!.outcomes.filter((o) => o.phase > 0).slice(0, 6).map((o, i) => (
-          <div key={'p' + i} className="item-card p-1"><ItemArt i={{ item: o.itemId, phase: o.phase, fi: 1000 }} className="h-24 w-full" /></div>
+        {cells.map((c, i) => (
+          <div key={i} className="item-card p-1"><ItemArt i={{ item: c.item, phase: c.phase, fi: 2000 }} className="h-28 w-full" /></div>
         ))}
       </div>
     </div>

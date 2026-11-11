@@ -9,6 +9,7 @@ import { rpc, type Item, type Me } from '../lib/api'
 import { applyMe, useGame } from '../store/game'
 import { dropSound, sfx } from '../audio/sfx'
 import { Roulette } from '../components/Roulette'
+import { prewarmCase } from '../art/three3d'
 import { Btn, CaseCover, Confetti, ItemArt, ItemCard, Money, Section, cx, itemTitle, mmss, rc, useNow } from '../components/ui'
 
 const COUNTS = [1, 2, 3, 5, 10]
@@ -36,6 +37,9 @@ export default function CasePage() {
     setSpinId(0)
   }, [id])
 
+  useEffect(() => {
+    if (c) prewarmCase(c)
+  }, [c])
   const isFree = c?.category === 'free'
   const tickets = c ? (me.tickets[c.id] ?? 0) : 0
   const freeLeft = isFree ? (me.free_case_at ?? 0) + BONUS.freeCase.cooldownMin * 60000 - now : 0

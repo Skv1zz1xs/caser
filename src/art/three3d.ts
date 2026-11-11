@@ -10,6 +10,7 @@ import type * as T from 'three'
 import { CATALOG, type CaseDef, type ItemDef } from '../shared/catalog'
 import { skinTextureSvg } from './item'
 import { SHAPES } from './shapes'
+import modelManifest from '../../scripts/models/manifest.json'
 
 interface Engine {
   THREE: typeof T
@@ -159,11 +160,169 @@ function extrude(E: Engine, key: string, d: string, depth: number, bevel: number
 
 export interface ItemSpec { item: string; phase: number; wear: number }
 
+
+/* ------------------- настоящие 3D-модели (GLB из public/models) ------------------- */
+const MODEL_SHAPES = new Set(Object.keys(modelManifest))
+
+/** Дополнительный поворот после автовыравнивания (градусы XYZ): ствол/лезвие вправо, верх вверх. */
+const ORIENT: Record<string, { auto?: boolean; r?: [number, number, number] }> = {
+  glove: { auto: false },
+  gauntlet: { auto: false },
+}
+
+const templates = new Map<string, Promise<{ meshes: T.Mesh[]; size: T.Vector3 } | null>>()
+
+async function loadTemplate(E: Engine, shape: string) {
+  let p = templates.get(shape)
+  if (p) return p
+  p = (async () => {
+    try {
+      const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js')
+      const { MeshoptDecoder } = await import('three/examples/jsm/libs/meshopt_decoder.module.js')
+      const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder)
+      const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}models/${shape}.glb`)
+      const { THREE } = E
+      gltf.scene.updateMatrixWorld(true)
+      // запекаем мировые трансформы в геометрию: дальше у мешей единичная матрица
+      const meshes: T.Mesh[] = []
+      gltf.scene.traverse((o: any) => {
+        if (!o.isMesh || o.isSkinnedMesh) return
+        const g = o.geometry.clone()
+        // после сжатия вершины целочисленные (quantization): переводим в float, иначе повороты их портят
+        for (const name of Object.keys(g.attributes)) {
+          const a = g.getAttribute(name) as T.BufferAttribute
+          if ((a as any).isInterleavedBufferAttribute || (a.array as any).constructor !== Float32Array) {
+            const arr = new Float32Array(a.count * a.itemSize)
+            for (let i = 0; i < a.count; i++) {
+              arr[i * a.itemSize] = a.getX(i)
+              if (a.itemSize > 1) arr[i * a.itemSize + 1] = a.getY(i)
+              if (a.itemSize > 2) arr[i * a.itemSize + 2] = a.getZ(i)
+              if (a.itemSize > 3) arr[i * a.itemSize + 3] = a.getW(i)
+            }
+            g.setAttribute(name, new THREE.BufferAttribute(arr, a.itemSize))
+          }
+        }
+        g.applyMatrix4(o.matrixWorld)
+        const m = new THREE.Mesh(g, o.material)
+        meshes.push(m)
+      })
+      if (!meshes.length) return null
+      const box = new THREE.Box3()
+      meshes.forEach((m) => box.expandByObject(m))
+      const size = box.getSize(new THREE.Vector3())
+      const cfg = ORIENT[shape] ?? {}
+      if (cfg.auto !== false) {
+        const axes = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)]
+        const order = [0, 1, 2].sort((a, b) => [size.x, size.y, size.z][b] - [size.x, size.y, size.z][a])
+        const ex = axes[order[0]].clone()
+        const ey = axes[order[1]].clone()
+        const ez = new THREE.Vector3().crossVectors(ex, ey)
+        const inv = new THREE.Matrix4().makeBasis(ex, ey, ez).invert()
+        meshes.forEach((m) => m.geometry.applyMatrix4(inv))
+      }
+      if (cfg.r) {
+        const rot = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...cfg.r.map((d) => (d * Math.PI) / 180) as [number, number, number]))
+        meshes.forEach((m) => m.geometry.applyMatrix4(rot))
+      }
+      const b2 = new THREE.Box3()
+      meshes.forEach((m) => {
+        m.geometry.computeBoundingBox()
+        b2.union(m.geometry.boundingBox!)
+      })
+      meshes.forEach((m) => m.geometry.translate(-(b2.min.x + b2.max.x) / 2, -(b2.min.y + b2.max.y) / 2, -(b2.min.z + b2.max.z) / 2))
+      return { meshes, size: b2.getSize(new THREE.Vector3()) }
+    } catch (e) {
+      console.warn('model load failed', shape, e)
+      return null
+    }
+  })()
+  templates.set(shape, p)
+  return p
+}
+
+const NO_PAINT = /glass|lens|reticle|bullet|brass|casing|ammo|screen|hologram/i
+
+/** Накладывает скин на материал: проекция с трёх сторон + сохранение яркости/деталей оригинала. */
+function paintMaterial(E: Engine, src: T.Material, skin: T.Texture, size: T.Vector3, opts: { paint: number; gloss: number; glow: number }): T.Material {
+  const { THREE } = E
+  const mat = (src as T.MeshStandardMaterial).clone()
+  const std = mat as T.MeshStandardMaterial
+  if (!(std as any).isMeshStandardMaterial) return mat
+  if (NO_PAINT.test(src.name) || src.transparent || (std.emissive.getHex() !== 0 && std.emissiveIntensity > 0.5)) return mat
+  std.envMapIntensity = 1.35
+  const s = Math.max(size.x / 2, size.y)
+  const uniforms = {
+    uSkin: { value: skin }, uHalf: { value: new THREE.Vector3(size.x / 2, size.y / 2, size.z / 2) }, uS: { value: s },
+    uPaint: { value: opts.paint }, uGloss: { value: opts.gloss }, uGlow: { value: opts.glow },
+  }
+  std.onBeforeCompile = (sh: any) => {
+    Object.assign(sh.uniforms, uniforms)
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vOP; varying vec3 vON;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvOP = position; vON = normal;')
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vOP; varying vec3 vON; uniform sampler2D uSkin; uniform vec3 uHalf; uniform float uS, uPaint, uGloss, uGlow;\nvec3 zSkin = vec3(0.0); float zPaint = 0.0;')
+      .replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+        {
+          vec3 p = vOP + uHalf;
+          vec3 an = pow(abs(normalize(vON)), vec3(3.0));
+          an /= (an.x + an.y + an.z + 1e-4);
+          vec3 sSide = texture2D(uSkin, vec2(p.x / (2.0 * uS), p.y / uS)).rgb;
+          vec3 sTop  = texture2D(uSkin, vec2(p.x / (2.0 * uS), p.z / uS)).rgb;
+          vec3 sEnd  = texture2D(uSkin, vec2(p.z / (2.0 * uS), p.y / uS)).rgb;
+          zSkin = sSide * an.z + sTop * an.y + sEnd * an.x;
+          float l = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+          float k = clamp(0.72 + 0.95 * pow(l, 0.65), 0.72, 1.35);
+          zPaint = uPaint;
+          diffuseColor.rgb = mix(diffuseColor.rgb, zSkin * k, zPaint);
+        }`,
+      )
+      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n metalnessFactor = mix(metalnessFactor, 0.3, zPaint * uGloss);')
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, 0.34, zPaint * uGloss * 0.7);')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += zSkin * uGlow * zPaint;')
+  }
+  std.customProgramCacheKey = () => 'skin-v1'
+  return mat
+}
+
+async function buildModelItem(E: Engine, def: ItemDef, spec: ItemSpec): Promise<T.Group | null> {
+  const tpl = await loadTemplate(E, def.shape)
+  if (!tpl) return null
+  const { THREE } = E
+  const skin = await svgTexture(E, skinTextureSvg(def, spec.phase, spec.wear))
+  skin.wrapS = skin.wrapT = THREE.MirroredRepeatWrapping
+  const isGlove = def.kind === 'glove'
+  const gem = spec.phase >= 2
+  const opts = { paint: isGlove ? 0.88 : 0.95, gloss: isGlove ? 0.15 : 1, glow: gem ? (spec.phase === 3 ? 0.55 : 0.4) : 0 }
+  const mats = new Map<T.Material, T.Material>()
+  const pivot = new THREE.Group()
+  for (const m of tpl.meshes) {
+    let pm = mats.get(m.material as T.Material)
+    if (!pm) {
+      pm = paintMaterial(E, m.material as T.Material, skin, tpl.size, opts)
+      mats.set(m.material as T.Material, pm)
+    }
+    pivot.add(new THREE.Mesh(m.geometry, pm))
+  }
+  const s = 0.94 * Math.min(2 / tpl.size.x, 1 / tpl.size.y)
+  pivot.scale.setScalar(s)
+  const root = new THREE.Group()
+  root.add(pivot)
+  root.userData.disposables = [skin, ...mats.values()]
+  return root
+}
+
 /** Собирает 3D-модель предмета. Вызывающий отвечает за dispose (см. disposeGroup). */
 async function buildItem(E: Engine, spec: ItemSpec): Promise<T.Group | null> {
   const { THREE } = E
   const def: ItemDef | undefined = CATALOG.itemById.get(spec.item)
   if (!def) return null
+  if (MODEL_SHAPES.has(def.shape)) {
+    const real = await buildModelItem(E, def, spec)
+    if (real) return real
+  }
   const shape = SHAPES[def.shape] ?? SHAPES.pistol
   const tex = await svgTexture(E, skinTextureSvg(def, spec.phase, spec.wear))
   const worn = spec.wear >= 3
@@ -440,16 +599,40 @@ function enqueue<R>(job: () => Promise<R>): Promise<R> {
   return p
 }
 
-function snapshot(E: Engine, scene: T.Scene, cam: T.Camera, w: number, h: number): Promise<string | null> {
+function snapshot(E: Engine, scene: T.Scene, cam: T.Camera, w: number, h: number, crop = false): Promise<string | null> {
   const k = 2 // суперсэмплинг: рендерим вдвое больше и уменьшаем — без лесенки
   E.renderer.setSize(w * k, h * k, false)
   E.renderer.render(scene, cam)
-  const out = document.createElement('canvas')
+  let out = document.createElement('canvas')
   out.width = w
   out.height = h
-  const ctx = out.getContext('2d')!
+  let ctx = out.getContext('2d', { willReadFrequently: crop })!
   ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(E.renderer.domElement, 0, 0, w, h)
+  if (crop) {
+    // обрезаем по предмету: в карточках он занимает всё доступное место
+    const d = ctx.getImageData(0, 0, w, h).data
+    let x0 = w, y0 = h, x1 = 0, y1 = 0
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++)
+        if (d[(y * w + x) * 4 + 3] > 12) {
+          if (x < x0) x0 = x
+          if (x > x1) x1 = x
+          if (y < y0) y0 = y
+          if (y > y1) y1 = y
+        }
+    if (x1 > x0 && y1 > y0) {
+      const mx = Math.round((x1 - x0) * 0.04) + 2
+      const my = Math.round((y1 - y0) * 0.06) + 2
+      const sx = Math.max(0, x0 - mx), sy = Math.max(0, y0 - my)
+      const sw = Math.min(w - sx, x1 - x0 + 2 * mx), sh = Math.min(h - sy, y1 - y0 + 2 * my)
+      const c2 = document.createElement('canvas')
+      c2.width = sw
+      c2.height = sh
+      c2.getContext('2d')!.drawImage(out, sx, sy, sw, sh, 0, 0, sw, sh)
+      out = c2
+    }
+  }
   return new Promise((res) => out.toBlob((b) => res(b ? URL.createObjectURL(b) : null), 'image/webp', 0.92))
 }
 
@@ -468,13 +651,13 @@ export function renderItem(spec: ItemSpec): Promise<string | null> {
     const scene = new THREE.Scene()
     scene.environment = E.env
     lightRig(E, scene)
-    model.rotation.y = -0.5
-    model.rotation.x = 0.08
+    model.rotation.y = -0.38
+    model.rotation.x = 0.1
     scene.add(model)
     const cam = new THREE.PerspectiveCamera(26, 2, 0.1, 50)
-    cam.position.set(0, 0.12, 2.7)
+    cam.position.set(0, 0.12, 2.5)
     cam.lookAt(0, 0, 0)
-    const url = await snapshot(E, scene, cam, 640, 320)
+    const url = await snapshot(E, scene, cam, 640, 320, true)
     disposeGroup(model)
     if (url) cache.set(k, url)
     return url
