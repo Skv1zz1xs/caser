@@ -41,6 +41,22 @@ function toHsl(hex: string): [number, number, number] {
 const hsl = (h: number, s: number, l: number) =>
   `hsl(${Math.round(((h % 360) + 360) % 360)} ${Math.round(Math.max(0, Math.min(100, s)))}% ${Math.round(Math.max(0, Math.min(100, l)))}%)`
 
+
+/** 'hsl(H S% L%)' → [r,g,b] 0..255 */
+function parseHslParts(css: string): [number, number, number] {
+  const m = css.match(/hsl\((\d+)\s+(\d+)%\s+(\d+)%\)/)
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : [0, 0, 50]
+}
+function parseHsl(css: string): [number, number, number] {
+  const [h, s, l] = parseHslParts(css)
+  const a = (s / 100) * Math.min(l / 100, 1 - l / 100)
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12
+    return Math.round(255 * (l / 100 - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))))
+  }
+  return [f(0), f(8), f(4)]
+}
+
 /* ------------------------------ паттерны -------------------------------- */
 interface Pal { a: string; b: string; c: string; dark: string; light: string }
 type Finish = (p: Pal, r: () => number) => { defs: string; fill: string; over?: string }
@@ -175,6 +191,31 @@ const FINISHES: Finish[] = [
         t += `<path d="M${x} ${y}L${x + 25} ${y}L${mx} ${my}Z" fill="${cols[Math.floor(r() * 5)]}"/><path d="M${x + 25} ${y}L${x + 25} ${y + 25}L${mx} ${my}Z" fill="${cols[Math.floor(r() * 5)]}"/><path d="M${x + 25} ${y + 25}L${x} ${y + 25}L${mx} ${my}Z" fill="${cols[Math.floor(r() * 5)]}"/><path d="M${x} ${y + 25}L${x} ${y}L${mx} ${my}Z" fill="${cols[Math.floor(r() * 5)]}"/>`
       }
     return { defs: '', fill: p.a, over: t }
+  },
+  // 18 мрамор: многослойные вихри (fractal noise → палитра), как «переливающийся» лак
+  (p, r) => {
+    const rgb = [p.dark, p.b, p.a, p.c, p.light].map(parseHsl)
+    const tv = (k: number) => rgb.map((c) => (c[k] / 255).toFixed(3)).join(' ')
+    const seed = Math.floor(r() * 900)
+    const fx = (0.006 + r() * 0.01).toFixed(4)
+    const fy = (0.02 + r() * 0.02).toFixed(4)
+    const filter = `<filter id="mb" filterUnits="userSpaceOnUse" x="0" y="0" width="200" height="100" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="${fx} ${fy}" numOctaves="5" seed="${seed}"/><feComponentTransfer><feFuncR type="table" tableValues="${tv(0)}"/><feFuncG type="table" tableValues="${tv(1)}"/><feFuncB type="table" tableValues="${tv(2)}"/><feFuncA type="linear" slope="0" intercept="1"/></feComponentTransfer></filter>`
+    return { defs: filter, fill: p.dark, over: '<rect width="200" height="100" filter="url(#mb)"/>' }
+  },
+  // 19 фейд: плавный градиент цвета по длине с мягкой зернистостью
+  (p, r) => {
+    const hue = parseHslParts(p.a)[0]
+    const stops = [hsl(hue + 330, 90, 52), hsl(hue + 20, 95, 55), hsl(hue + 55, 95, 58), hsl(hue + 85, 90, 60)]
+    const grain = `<filter id="fg" filterUnits="userSpaceOnUse" x="0" y="0" width="200" height="100"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="${Math.floor(r() * 99)}"/><feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .5 -.12"/></filter>`
+    return { defs: lin('f', stops, 1, 0.35) + grain, fill: 'url(#f)', over: '<rect width="200" height="100" filter="url(#fg)" opacity=".35"/>' }
+  },
+  // 20 гидрография: жилки как у мрамора, но с резкими краями (ridge)
+  (p, r) => {
+    const rgb = [p.dark, p.a, p.dark, p.c, p.dark, p.b].map(parseHsl)
+    const tv = (k: number) => rgb.map((c) => (c[k] / 255).toFixed(3)).join(' ')
+    const seed = Math.floor(r() * 900)
+    const filter = `<filter id="hy" filterUnits="userSpaceOnUse" x="0" y="0" width="200" height="100" color-interpolation-filters="sRGB"><feTurbulence type="turbulence" baseFrequency="0.01 0.035" numOctaves="3" seed="${seed}"/><feComponentTransfer><feFuncR type="discrete" tableValues="${tv(0)}"/><feFuncG type="discrete" tableValues="${tv(1)}"/><feFuncB type="discrete" tableValues="${tv(2)}"/><feFuncA type="linear" slope="0" intercept="1"/></feComponentTransfer></filter>`
+    return { defs: filter, fill: p.dark, over: '<rect width="200" height="100" filter="url(#hy)"/>' }
   },
 ]
 
