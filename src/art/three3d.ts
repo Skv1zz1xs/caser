@@ -601,6 +601,47 @@ function lightRig(E: Engine, scene: T.Scene) {
   scene.add(key, rim, fill, new THREE.AmbientLight(0x8899bb, 0.25))
 }
 
+
+/* ---------- постоянный кэш снимков (IndexedDB): повторные заходы не рендерят заново ---------- */
+const ART_VER = 'a6'
+let dbp: Promise<IDBDatabase | null> | null = null
+function idb(): Promise<IDBDatabase | null> {
+  if (!dbp)
+    dbp = new Promise((res) => {
+      try {
+        const rq = indexedDB.open('zalet-art', 1)
+        rq.onupgradeneeded = () => rq.result.createObjectStore('snap')
+        rq.onsuccess = () => res(rq.result)
+        rq.onerror = () => res(null)
+      } catch {
+        res(null)
+      }
+    })
+  return dbp
+}
+async function idbGet(key: string): Promise<Blob | null> {
+  const db = await idb()
+  if (!db) return null
+  return new Promise((res) => {
+    try {
+      const rq = db.transaction('snap').objectStore('snap').get(ART_VER + key)
+      rq.onsuccess = () => res((rq.result as Blob) ?? null)
+      rq.onerror = () => res(null)
+    } catch {
+      res(null)
+    }
+  })
+}
+async function idbPut(key: string, blob: Blob): Promise<void> {
+  const db = await idb()
+  if (!db) return
+  try {
+    db.transaction('snap', 'readwrite').objectStore('snap').put(blob, ART_VER + key)
+  } catch {
+    /* кэш необязателен */
+  }
+}
+
 const cache = new Map<string, string>()
 const pending = new Map<string, Promise<string | null>>()
 let queue: Promise<unknown> = Promise.resolve()
@@ -616,9 +657,10 @@ function enqueue<R>(job: () => Promise<R>): Promise<R> {
   return p
 }
 
-function snapshot(E: Engine, scene: T.Scene, cam: T.Camera, w: number, h: number, crop = false): Promise<string | null> {
-  const k = 2 // суперсэмплинг: рендерим вдвое больше и уменьшаем — без лесенки
-  E.renderer.setSize(w * k, h * k, false)
+function snapshot(E: Engine, scene: T.Scene, cam: T.Camera, w: number, h: number, crop = false): Promise<Blob | null> {
+  // суперсэмплинг: рендерим вдвое больше и уменьшаем — без лесенки; на слабых устройствах в 1.5 раза
+  const k = (navigator.hardwareConcurrency ?? 8) <= 4 ? 1.5 : 2
+  E.renderer.setSize(Math.round(w * k), Math.round(h * k), false)
   E.renderer.render(scene, cam)
   let out = document.createElement('canvas')
   out.width = w
@@ -650,7 +692,7 @@ function snapshot(E: Engine, scene: T.Scene, cam: T.Camera, w: number, h: number
       out = c2
     }
   }
-  return new Promise((res) => out.toBlob((b) => res(b ? URL.createObjectURL(b) : null), 'image/webp', 0.92))
+  return new Promise((res) => out.toBlob((b) => res(b), 'image/webp', 0.92))
 }
 
 /** PNG-снимок 3D-модели предмета (blob-URL). null — WebGL недоступен. */
@@ -659,7 +701,14 @@ export function renderItem(spec: ItemSpec): Promise<string | null> {
   const k = keyOf(s)
   if (cache.has(k)) return Promise.resolve(cache.get(k)!)
   if (pending.has(k)) return pending.get(k)!
-  const p = enqueue(async () => {
+  const p = (async () => {
+    const stored = await idbGet(k)
+    if (stored) {
+      const u = URL.createObjectURL(stored)
+      cache.set(k, u)
+      return u
+    }
+    return enqueue(async () => {
     const E = await getEngine()
     if (!E) return null
     const { THREE } = E
@@ -674,11 +723,15 @@ export function renderItem(spec: ItemSpec): Promise<string | null> {
     const cam = new THREE.PerspectiveCamera(26, 2, 0.1, 50)
     cam.position.set(0, 0.12, 2.5)
     cam.lookAt(0, 0, 0)
-    const url = await snapshot(E, scene, cam, 640, 320, true)
+    const blob = await snapshot(E, scene, cam, 640, 320, true)
     disposeGroup(model)
-    if (url) cache.set(k, url)
+    if (!blob) return null
+    void idbPut(k, blob)
+    const url = URL.createObjectURL(blob)
+    cache.set(k, url)
     return url
-  }).finally(() => pending.delete(k))
+    })
+  })().finally(() => pending.delete(k))
   pending.set(k, p)
   return p
 }
@@ -688,7 +741,14 @@ export function renderCase(id: string): Promise<string | null> {
   const k = 'c:' + id
   if (cache.has(k)) return Promise.resolve(cache.get(k)!)
   if (pending.has(k)) return pending.get(k)!
-  const p = enqueue(async () => {
+  const p = (async () => {
+    const stored = await idbGet(k)
+    if (stored) {
+      const u = URL.createObjectURL(stored)
+      cache.set(k, u)
+      return u
+    }
+    return enqueue(async () => {
     const E = await getEngine()
     const c = CATALOG.caseById.get(id)
     if (!E || !c) return null
@@ -702,11 +762,15 @@ export function renderCase(id: string): Promise<string | null> {
     const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50)
     cam.position.set(0, 1.5, 6.5)
     cam.lookAt(0, 0.9, 0)
-    const url = await snapshot(E, scene, cam, 512, 512)
+    const blob = await snapshot(E, scene, cam, 512, 512)
     disposeGroup(model)
-    if (url) cache.set(k, url)
+    if (!blob) return null
+    void idbPut(k, blob)
+    const url = URL.createObjectURL(blob)
+    cache.set(k, url)
     return url
-  }).finally(() => pending.delete(k))
+    })
+  })().finally(() => pending.delete(k))
   pending.set(k, p)
   return p
 }
