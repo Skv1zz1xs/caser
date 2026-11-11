@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Backpack, CloudRain, Coins, FileSignature, Gift, LayoutGrid, Menu, MessageCircle, Send, ShieldCheck, Swords, TrendingUp, Trophy, User,
-  Volume2, VolumeX, X, Award, TriangleAlert,
+  Volume2, VolumeX, X, Award, TriangleAlert, Zap,
 } from 'lucide-react'
 import { BONUS } from '../config/economy'
 import { CATALOG } from '../shared/catalog'
@@ -11,7 +11,7 @@ import { fmtShort } from '../shared/money'
 import { rpc } from '../lib/api'
 import { useGame } from '../store/game'
 import { sfx } from '../audio/sfx'
-import { Avatar, Btn, ItemArt, Money, cx, mmss, rc, reducedMotion, useNow } from './ui'
+import { AnimatedMoney, Avatar, Btn, ItemArt, Money, cx, mmss, rc, reducedMotion, useNow } from './ui'
 
 const NAV = [
   { to: '/', label: 'Кейсы', icon: LayoutGrid, end: true },
@@ -54,6 +54,18 @@ function BonusChip() {
 
 const EASE = [0.22, 1, 0.36, 1] as const
 
+function EventChip() {
+  const ev = useGame((s) => s.event)
+  const now = useNow()
+  if (!ev) return null
+  const on = ev.on && now < ev.ends_at
+  return (
+    <div data-testid="event-chip" data-on={on ? '1' : '0'} className={cx('hidden h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-bold md:flex', on ? 'bg-gold/20 text-gold pulse-ring' : 'bg-white/6 text-mute')} title="Раз в 40 минут на 5 минут весь опыт удваивается">
+      <Zap size={14} />{on ? <>Час залёта x2 XP · {mmss(ev.ends_at - now)}</> : <>Час залёта через {mmss(Math.max(0, ev.next_at - now))}</>}
+    </div>
+  )
+}
+
 function Header() {
   const me = useGame((s) => s.me)!
   const sound = useGame((s) => s.sound)
@@ -85,9 +97,10 @@ function Header() {
         <motion.div initial={reduce ? false : { y: -24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.6, ease: EASE, delay: 0.08 }}
           className="pointer-events-auto flex h-14 items-center gap-1.5 rounded-2xl border border-white/10 bg-[#0b1220]/70 px-2 shadow-[0_8px_32px_rgb(0_0_0/.45)] backdrop-blur-xl sm:gap-2">
           <span className="hidden items-center gap-1.5 px-1 text-xs text-mute md:flex"><span className="size-1.5 rounded-full bg-ok" />онлайн {online}</span>
+          <EventChip />
           <BonusChip />
           <div className="flex h-10 items-center rounded-xl bg-white/6 px-3" data-testid="balance" data-value={me.balance}>
-            <Money v={me.balance} className="display text-sm font-bold" size={15} />
+            <AnimatedMoney v={me.balance} className="display text-sm font-bold" size={15} />
           </div>
           <button aria-label="Звук" onClick={() => setG({ sound: !sound })} className="hidden size-10 place-items-center rounded-xl text-mute transition-colors duration-300 hover:bg-white/8 hover:text-white sm:grid">
             {sound ? <Volume2 size={16} /> : <VolumeX size={16} />}
@@ -305,8 +318,12 @@ export function Layout({ children }: { children: ReactNode }) {
   const chatOpen = useGame((s) => s.chatOpen)
   const setG = useGame((s) => s.set)
   const mismatch = useGame((s) => s.versionMismatch)
+  const net = useGame((s) => s.net)
   return (
     <div className="min-h-dvh pt-[76px]">
+      {net === 'offline' && (
+        <div role="status" data-testid="offline" className="fixed inset-x-0 top-0 z-[75] bg-bad/90 px-3 py-1.5 text-center text-xs font-bold text-white">Нет связи с сервером. Пробуем переподключиться…</div>
+      )}
       <div className="aurora" aria-hidden>
         <i style={{ '--c': 'rgb(60 110 255 / .5)', '--d': '22s', '--x': '120px', '--y': '80px', left: '-10%', top: '-15%', width: '60vw', height: '60vw' } as CSSProperties} />
         <i style={{ '--c': 'rgb(150 70 255 / .4)', '--d': '28s', '--x': '-140px', '--y': '120px', right: '-15%', top: '5%', width: '55vw', height: '55vw' } as CSSProperties} />

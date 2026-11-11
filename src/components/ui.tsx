@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import * as L from 'lucide-react'
+import { Coins, Wrench, Archive, Trees, Store, Gem, Building2, Crosshair, BedDouble, Toilet, Brain, Sprout, GraduationCap, Cat, Pickaxe, Sigma, Dumbbell, DoorOpen, Car, PartyPopper, Swords, Flower2, BookOpen, Radiation, Terminal, Cpu, Rocket, Skull, Spade, Flame, Zap, Pyramid, Sword, Hand, Axe, Feather, Percent, Scale, Bomb, Target, Landmark, Hexagon, Heart, Diamond, Crown, Infinity, Gift, Anchor, Sun, Snowflake, Ghost, Clapperboard, Moon, FlaskConical, Star, ShieldCheck, Leaf, Shield, Mountain, Sparkles, Dog, Bird, Fish, Bug, Rabbit, Squirrel, Turtle, Snail, Pizza, Banana, Cherry, Cookie, Gamepad2, Headphones, Glasses, Package, LoaderCircle, X, type LucideIcon } from 'lucide-react'
+const ICONS: Record<string, LucideIcon> = { Coins, Wrench, Archive, Trees, Store, Gem, Building2, Crosshair, BedDouble, Toilet, Brain, Sprout, GraduationCap, Cat, Pickaxe, Sigma, Dumbbell, DoorOpen, Car, PartyPopper, Swords, Flower2, BookOpen, Radiation, Terminal, Cpu, Rocket, Skull, Spade, Flame, Zap, Pyramid, Sword, Hand, Axe, Feather, Percent, Scale, Bomb, Target, Landmark, Hexagon, Heart, Diamond, Crown, Infinity, Gift, Anchor, Sun, Snowflake, Ghost, Clapperboard, Moon, FlaskConical, Star, ShieldCheck, Leaf, Shield, Mountain, Sparkles, Dog, Bird, Fish, Bug, Rabbit, Squirrel, Turtle, Snail, Pizza, Banana, Cherry, Cookie, Gamepad2, Headphones, Glasses, Package, LoaderCircle, X }
 import { COUNTER, PHASES, RARITIES, WEAR } from '../config/economy'
 import { CATALOG, type CaseDef } from '../shared/catalog'
 import { fmt, fmtShort, wearIndex } from '../shared/money'
@@ -36,6 +37,35 @@ export function Money({ v, short, className, size }: { v: number; short?: boolea
   )
 }
 
+/** Баланс, который плавно «докручивается» к новому значению и коротко вспыхивает зелёным или красным. */
+export function AnimatedMoney({ v, className, size }: { v: number; className?: string; size?: number }) {
+  const [shown, setShown] = useState(v)
+  const [flash, setFlash] = useState<'' | 'text-ok' | 'text-bad'>('')
+  const from = useRef(v)
+  useEffect(() => {
+    if (from.current === v) return
+    const start = from.current
+    setFlash(v > start ? 'text-ok' : 'text-bad')
+    const t0 = performance.now()
+    let raf = 0
+    const dur = reducedMotion() ? 1 : 600
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - t0) / dur)
+      setShown(Math.round(start + (v - start) * (1 - Math.pow(1 - k, 4))))
+      if (k < 1) raf = requestAnimationFrame(tick)
+      else from.current = v
+    }
+    raf = requestAnimationFrame(tick)
+    const off = setTimeout(() => setFlash(''), 700)
+    return () => {
+      cancelAnimationFrame(raf)
+      clearTimeout(off)
+      from.current = v
+    }
+  }, [v])
+  return <Money v={shown} className={cx('transition-colors duration-300', flash, className)} size={size} />
+}
+
 /* ------------------------------ кнопки ---------------------------------- */
 export function Btn({
   children, onClick, disabled, kind = 'soft', className, busy, title, testId,
@@ -52,7 +82,7 @@ export function Btn({
   }
   return (
     <button data-testid={testId} title={title} className={cx(base, kinds[kind], className)} disabled={disabled || busy} onClick={onClick}>
-      {busy ? <L.LoaderCircle size={16} className="animate-spin" /> : children}
+      {busy ? <LoaderCircle size={16} className="animate-spin" /> : children}
     </button>
   )
 }
@@ -62,7 +92,7 @@ const AV_ICONS = ['Ghost', 'Cat', 'Dog', 'Bird', 'Fish', 'Bug', 'Rabbit', 'Squir
   'Pizza', 'Banana', 'Cherry', 'Cookie', 'Gamepad2', 'Headphones', 'Glasses', 'Anchor'] as const
 export function Avatar({ n, size = 32, ring }: { n: number; size?: number; ring?: string }) {
   const i = ((n % AV_ICONS.length) + AV_ICONS.length) % AV_ICONS.length
-  const Icon = (L as any)[AV_ICONS[i]] as L.LucideIcon
+  const Icon = ICONS[AV_ICONS[i]] ?? Package
   const h = (i * 47) % 360
   return (
     <span
@@ -125,6 +155,10 @@ export function ItemCard({
   return (
     <div
       onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-pressed={onClick ? !!selected : undefined}
+      onKeyDown={onClick ? (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onClick()) : undefined}
       className={cx('item-card flex flex-col', selected && 'sel', onClick && 'cursor-pointer hover:brightness-125 transition', dim && 'opacity-40', special && 'shine')}
       style={{ '--rc': rc(i.rarity) } as CSSProperties}
     >
@@ -179,7 +213,7 @@ export function CaseCover({ c, size = 120 }: { c: CaseDef; size?: number }) {
 
 /** Плоская обложка — пока грузится 3D или если WebGL недоступен. */
 function FlatCase({ c, size }: { c: CaseDef; size: number }) {
-  const Icon = ((L as any)[c.icon] ?? L.Package) as L.LucideIcon
+  const Icon = ICONS[c.icon] ?? Package
   const [a, b] = c.colors
   return (
     <div className="relative size-full">
@@ -212,13 +246,14 @@ export function Modal({ open, onClose, children, title, wide }: { open: boolean;
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
         >
           <motion.div
+            role="dialog" aria-modal="true"
             className={cx('glass w-full rounded-t-3xl sm:rounded-3xl bg-panel/95 max-h-[92dvh] overflow-y-auto', wide ? 'sm:max-w-3xl' : 'sm:max-w-lg')}
             initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} transition={{ duration: 0.2 }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-panel/95 px-5 py-4 border-b border-line">
               <div className="display text-base font-bold">{title}</div>
-              <button aria-label="Закрыть" onClick={onClose} className="grid size-9 place-items-center rounded-full hover:bg-white/10"><L.X size={18} /></button>
+              <button aria-label="Закрыть" onClick={onClose} className="grid size-9 place-items-center rounded-full hover:bg-white/10"><X size={18} /></button>
             </div>
             <div className="p-5">{children}</div>
           </motion.div>
@@ -234,7 +269,7 @@ export function Toasts() {
   const drop = useGame((s) => s.dropToast)
   const color = { ok: 'border-ok/40 text-ok', err: 'border-bad/50 text-bad', info: 'border-white/15', gold: 'border-gold/60 text-gold' }
   return (
-    <div className="fixed left-1/2 top-16 z-[70] flex w-[min(92vw,420px)] -translate-x-1/2 flex-col gap-2 pointer-events-none">
+    <div role="status" aria-live="polite" className="fixed left-1/2 top-[84px] z-[70] flex w-[min(92vw,420px)] -translate-x-1/2 flex-col gap-2 pointer-events-none">
       <AnimatePresence>
         {toasts.map((t) => (
           <motion.div
@@ -331,7 +366,7 @@ export function Bar({ v, max, color = 'var(--color-gold)' }: { v: number; max: n
     </div>
   )
 }
-export function Empty({ icon: Icon = L.Package, children }: { icon?: L.LucideIcon; children: ReactNode }) {
+export function Empty({ icon: Icon = Package, children }: { icon?: LucideIcon; children: ReactNode }) {
   return (
     <div className="grid place-items-center gap-3 py-12 text-center text-mute">
       <Icon size={36} strokeWidth={1.5} />

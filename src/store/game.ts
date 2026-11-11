@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { CATALOG } from '../shared/catalog'
-import { configured, ensureSession, rpc, supabase, type Battle, type ChatMsg, type Coinflip, type FeedMsg, type Item, type Me, type Rain, type SyncData } from '../lib/api'
+import { configured, ensureSession, rpc, supabase, type GameEvent, type Battle, type ChatMsg, type Coinflip, type FeedMsg, type Item, type Me, type Rain, type SyncData } from '../lib/api'
 
 export interface Toast { id: number; kind: 'ok' | 'err' | 'info' | 'gold'; text: string }
 
@@ -16,11 +16,13 @@ interface State {
   battles: Battle[]
   coinflips: Coinflip[]
   rain: Rain | null
+  event: GameEvent | null
   online: number
   /** серверное время − локальное, мс */
   offset: number
   versionMismatch: boolean
   realtime: boolean
+  net: 'ok' | 'offline'
   toasts: Toast[]
   chatOpen: boolean
   unread: number
@@ -62,10 +64,12 @@ export const useGame = create<State>((set, get) => ({
   battles: [],
   coinflips: [],
   rain: null,
+  event: null,
   online: 0,
   offset: 0,
   versionMismatch: false,
   realtime: false,
+  net: 'ok',
   toasts: [],
   chatOpen: false,
   unread: 0,
@@ -135,10 +139,15 @@ export const useGame = create<State>((set, get) => ({
         patch.battles = d.battles ?? []
         patch.coinflips = d.coinflips ?? []
         patch.rain = d.rain ?? null
+        patch.event = d.event ?? null
         patch.online = d.online ?? 0
       }
+      patch.net = 'ok'
       set(patch)
       if (d.me && get().itemsLoaded && d.me.inv_rev !== get().itemsRev) void get().loadItems(true)
+    } catch (e) {
+      if (/связи|fetch|network|Failed/i.test(String((e as Error).message))) set({ net: 'offline' })
+      throw e
     } finally {
       syncing = false
       if (again) {
@@ -183,7 +192,8 @@ export const useGame = create<State>((set, get) => ({
     try {
       return await fn()
     } catch (e: any) {
-      get().toast(e.message ?? 'Ошибка', 'err')
+      const m = String(e.message ?? 'Ошибка')
+      get().toast(/Failed to fetch|NetworkError|Load failed/i.test(m) ? 'Нет связи с сервером. Проверь интернет и попробуй ещё раз' : m, 'err')
       void get().sync()
       if (get().itemsLoaded) void get().loadItems(true)
       return null
@@ -223,6 +233,8 @@ function startRealtime() {
   let ch = supabase.channel('live')
   for (const table of ['chat', 'feed', 'battles', 'coinflips', 'rain']) ch = ch.on('postgres_changes' as any, { event: '*', schema: 'public', table }, kick)
   ch.subscribe((status) => useGame.setState({ realtime: status === 'SUBSCRIBED' }))
+  window.addEventListener('offline', () => useGame.setState({ net: 'offline' }))
+  window.addEventListener('online', () => void useGame.getState().sync().catch(() => {}))
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       void useGame.getState().sync().catch(() => {})

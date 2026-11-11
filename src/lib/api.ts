@@ -98,7 +98,9 @@ export interface Coinflip {
   created_at: number
 }
 export interface Rain { id: number; active: boolean; pot: number; ends_at: number; joiners: number; joined: boolean; share: number; next_at: number }
+export interface GameEvent { on: boolean; ends_at: number; next_at: number }
 export interface SyncData {
+  event?: GameEvent
   now: number
   version: string | null
   me: Me | null

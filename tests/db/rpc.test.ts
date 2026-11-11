@@ -502,6 +502,17 @@ describe('бонусы и прогрессия', () => {
   })
 })
 
+describe('Час залёта', () => {
+  it('sync отдаёт расписание события, в тестах оно выключено, множитель опыта равен 1', async () => {
+    const u = await db.user('Событийный')
+    const s = await db.rpc(u.uid, 'sync')
+    expect(s.event.on).toBe(false)
+    expect(s.event.next_at - s.event.ends_at).toBe(2100 * 1000)
+    expect(s.event.next_at).toBeGreaterThan(s.now)
+    expect((await db.admin.query('select game.xpm() m')).rows[0].m).toBe(1)
+  })
+})
+
 describe('защита от злоупотреблений', () => {
   it('«второй шанс» не выдаётся, пока монеты лежат в открытом коинфлипе или батле', async () => {
     const u = await db.user('Хитрец')

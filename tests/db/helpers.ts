@@ -25,6 +25,7 @@ export async function setupDb(): Promise<Db> {
   const root = new pg.Client(BASE)
   await root.connect()
   await root.query('create database ' + name)
+  await root.query(`alter database ${name} set game.no_event = 'on'`) // тесты не зависят от «Часа залёта»
   await root.end()
   const url = new URL(BASE)
   url.pathname = '/' + name

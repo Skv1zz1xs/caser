@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useGame } from './store/game'
 import { Layout } from './components/Layout'
@@ -6,14 +6,19 @@ import { Toasts } from './components/ui'
 import { Fatal, Login, Setup } from './pages/Login'
 import Home from './pages/Home'
 import CasePage from './pages/CasePage'
-import Inventory from './pages/Inventory'
-import Upgrade from './pages/Upgrade'
-import Contracts from './pages/Contracts'
-import { BattleRoom, Battles } from './pages/Battles'
-import { Bonus, Coinflip, Pass, Top } from './pages/More'
-import { Fair, Profile } from './pages/Profile'
-import Gallery from './pages/Gallery'
-import Credits from './pages/Credits'
+const Inventory = lazy(() => import('./pages/Inventory'))
+const Upgrade = lazy(() => import('./pages/Upgrade'))
+const Contracts = lazy(() => import('./pages/Contracts'))
+const BattleRoom = lazy(() => import('./pages/Battles').then((m) => ({ default: m.BattleRoom })))
+const Battles = lazy(() => import('./pages/Battles').then((m) => ({ default: m.Battles })))
+const Bonus = lazy(() => import('./pages/More').then((m) => ({ default: m.Bonus })))
+const Coinflip = lazy(() => import('./pages/More').then((m) => ({ default: m.Coinflip })))
+const Pass = lazy(() => import('./pages/More').then((m) => ({ default: m.Pass })))
+const Top = lazy(() => import('./pages/More').then((m) => ({ default: m.Top })))
+const Fair = lazy(() => import('./pages/Profile').then((m) => ({ default: m.Fair })))
+const Profile = lazy(() => import('./pages/Profile').then((m) => ({ default: m.Profile })))
+const Gallery = lazy(() => import('./pages/Gallery'))
+const Credits = lazy(() => import('./pages/Credits'))
 
 function ScrollTop() {
   const { pathname } = useLocation()
@@ -38,6 +43,7 @@ export default function App() {
       {phase === 'login' ? <Login /> : (
         <Layout>
           <ScrollTop />
+          <Suspense fallback={<div className="space-y-3"><div className="h-24 animate-pulse rounded-3xl bg-white/5" /><div className="h-64 animate-pulse rounded-3xl bg-white/5" /></div>}>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/case/:id" element={<CasePage />} />
@@ -57,6 +63,7 @@ export default function App() {
             <Route path="/credits" element={<Credits />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </Suspense>
         </Layout>
       )}
     </HashRouter>

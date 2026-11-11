@@ -37,6 +37,11 @@ export default function Home() {
   const groups = CATEGORIES.filter((g) => cat === 'all' || g.id === cat)
   return (
     <div className="space-y-5">
+      {(me.stats.opened ?? 0) === 0 && (
+        <div data-testid="onboarding" className="rounded-2xl border border-gold/30 bg-gold/10 px-4 py-3 text-sm">
+          <b className="text-gold">С чего начать:</b> 1. Забери бесплатный кейс. 2. Продай дроп или собери из предметов апгрейд. 3. Зови друзей в батл.
+        </div>
+      )}
       <Link to="/case/free" data-testid="free-banner" className="glass shine relative flex items-center gap-4 overflow-hidden rounded-3xl border-ok/30 p-4">
         <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-ok/15 text-ok"><Gift size={30} /></div>
         <div className="min-w-0 flex-1">

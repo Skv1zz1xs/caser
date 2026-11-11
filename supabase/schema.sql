@@ -328,6 +328,22 @@ create function game.ms(p_ts timestamptz) returns bigint language sql immutable 
   select (extract(epoch from p_ts) * 1000)::bigint
 $$;
 
+-- «Час залёта»: каждые 40 минут окно в 5 минут, когда весь опыт удваивается. Расписание считает сервер по now().
+create function game.event_start() returns bigint language sql stable as $$
+  select (extract(epoch from now())::bigint / 2400) * 2400
+$$;
+create function game.event_on() returns boolean language sql stable as $$
+  select extract(epoch from now())::bigint - game.event_start() < 300
+     and coalesce(current_setting('game.no_event', true), '') <> 'on'
+$$;
+create function game.xpm() returns int language sql stable as $$
+  select case when game.event_on() then 2 else 1 end
+$$;
+create function game.event_view() returns jsonb language sql stable as $$
+  select jsonb_build_object('on', game.event_on(), 'ends_at', (game.event_start() + 300) * 1000,
+    'next_at', (game.event_start() + 2400) * 1000)
+$$;
+
 -- «Игровые сутки» и неделя (со сдвигом часового пояса из конфига).
 create function game.day_key() returns text language sql stable as $$
   select 'd:' || to_char((now() at time zone 'utc') + make_interval(hours => game.num('tz_hours')::int), 'YYYY-MM-DD')
@@ -614,7 +630,7 @@ begin
     jsonb_build_object('opened', p_count, 'earned', v_earn, 'x10', v_x10, 'specials', v_sp, 'gems', v_gem, 'novas', v_nova, 'contrabands', v_con),
     jsonb_build_object('best_mult', v_best_mult, 'best_drop', v_best_drop));
   update public.profiles
-    set xp = xp + (game.cfg('pass') #>> '{xp,open}')::int * p_count, inv_rev = inv_rev + 1
+    set xp = xp + ((game.cfg('pass') #>> '{xp,open}')::int * game.xpm()) * p_count, inv_rev = inv_rev + 1
     where id = p_pid;
   return v_drops;
 end $$;
@@ -717,7 +733,7 @@ begin
   return jsonb_build_object(
     'now', game.ms(now()), 'version', game.cfg('version'), 'me', game.after(v_pid),
     'chat', v_chat, 'feed', v_feed,
-    'battles', game.battle_list(v_pid), 'coinflips', game.coinflip_list(), 'rain', game.rain_view(v_pid),
+    'battles', game.battle_list(v_pid), 'coinflips', game.coinflip_list(), 'rain', game.rain_view(v_pid), 'event', game.event_view(),
     'online', (select count(*) from profiles where last_seen > now() - interval '40 seconds'));
 end $$;
 
@@ -926,7 +942,7 @@ begin
 
   delete from items where owner = v_pid and id = any (v_ids);
   update profiles set balance = balance - v_coins, inv_rev = inv_rev + 1,
-                      xp = xp + (game.cfg('pass') #>> '{xp,upgrade}')::int where id = v_pid;
+                      xp = xp + ((game.cfg('pass') #>> '{xp,upgrade}')::int * game.xpm()) where id = v_pid;
   insert into rolls (profile_id, kind, seed_id, client_seed, nonce, detail)
     values (v_pid, 'upgrade', r.sid, r.cseed, r.nnc, jsonb_build_object('input', v_in, 'coins', v_coins, 'case', p_case, 'idx', p_idx,
       'item', t.item_id, 'target', v_target, 'ppm', v_ppm, 'roll', v_roll, 'win', v_win))
@@ -1075,7 +1091,7 @@ begin
     values (v_pid, pk.case_id, pk.idx, pk.item_id, pk.phase, v_target, pk.fi, false, pk.price, 'contract', v_roll_id)
     returning * into i;
   v_item := game.item_json(i);
-  update profiles set inv_rev = inv_rev + 1, xp = xp + (game.cfg('pass') #>> '{xp,contract}')::int where id = v_pid;
+  update profiles set inv_rev = inv_rev + 1, xp = xp + ((game.cfg('pass') #>> '{xp,contract}')::int * game.xpm()) where id = v_pid;
   perform game.bump(v_pid, jsonb_build_object('contracts', 1, 'specials', (v_target = 6)::int, 'contrabands', (v_target = 7)::int));
   if v_target >= 3 then perform game.add_feed(v_pid, 'contract', (v_item - 'id') || jsonb_build_object('from', v_sum)); end if;
   return jsonb_build_object('item', v_item, 'mult', v_mult, 'value', v_value, 'sum', v_sum, 'secret', v_secret,
@@ -1218,7 +1234,7 @@ begin
             jsonb_build_object('amount', v_pay, 'cost', b.cost, 'mode', b.mode, 'format', b.format, 'battle', b.id)) end);
     end if;
     perform game.bump(v_pid, jsonb_build_object('battles', 1, 'battle_wins', v_won::int, 'battle_winnings', case when v_won then v_pay else 0 end));
-    update public.profiles set xp = xp + (game.cfg('pass') #>> '{xp,battle}')::int where id = v_pid;
+    update public.profiles set xp = xp + ((game.cfg('pass') #>> '{xp,battle}')::int * game.xpm()) where id = v_pid;
   end loop;
 end $$;
 
@@ -1379,11 +1395,11 @@ begin
     insert into public.pending_credits (profile_id, amount, available_at, reason, feed)
       values (v_winner, v_pay, v_ends, 'coinflip', jsonb_build_object('kind', 'coinflip', 'data', jsonb_build_object('amount', v_pay, 'stake', c.stake)));
     perform game.bump(v_winner, jsonb_build_object('coinflips', 1, 'coinflip_wins', 1));
-    update public.profiles set xp = xp + (game.cfg('pass') #>> '{xp,coinflip}')::int where id = v_winner;
+    update public.profiles set xp = xp + ((game.cfg('pass') #>> '{xp,coinflip}')::int * game.xpm()) where id = v_winner;
   end if;
   if v_loser is not null and not (c.joiner_bot and not v_bot_won) then
     perform game.bump(v_loser, jsonb_build_object('coinflips', 1));
-    update public.profiles set xp = xp + (game.cfg('pass') #>> '{xp,coinflip}')::int where id = v_loser;
+    update public.profiles set xp = xp + ((game.cfg('pass') #>> '{xp,coinflip}')::int * game.xpm()) where id = v_loser;
   end if;
 end $$;
 

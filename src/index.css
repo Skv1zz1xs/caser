@@ -8,7 +8,7 @@
   --color-bg: #060a12;
   --color-panel: #0e1523;
   --color-line: rgb(255 255 255 / 0.08);
-  --color-mute: #8b91a7;
+  --color-mute: #a0a7c0;
   --color-gold: #ffc93c;
   --color-fire: #ff7a18;
   --color-ok: #3ddc97;
@@ -149,3 +149,6 @@ img { -webkit-user-drag: none; user-select: none; }
 @keyframes win-pop { 0% { transform: scale(1); } 40% { transform: scale(1.14); } 100% { transform: scale(1.05); } }
 .win-pop { animation: win-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; z-index: 5; box-shadow: 0 0 34px var(--rc); }
 .panel-glass { background: rgb(11 18 32 / 0.55); border: 1px solid rgb(255 255 255 / 0.09); backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2); }
+
+:focus-visible { outline: 2px solid rgb(255 201 60 / 0.8); outline-offset: 2px; }
+input:focus-visible, select:focus-visible { outline: none; box-shadow: 0 0 0 2px rgb(255 201 60 / 0.55); }

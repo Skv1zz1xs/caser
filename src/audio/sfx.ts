@@ -80,3 +80,13 @@ export function dropSound(rarity: number, phase = 0): void {
   else if (rarity >= 2) sfx('good')
   else sfx('common')
 }
+
+/** Вибрация на телефоне (если включён звук/эффекты и браузер умеет). */
+export function haptic(pattern: number | number[]): void {
+  if (!useGame.getState().sound) return
+  try {
+    navigator.vibrate?.(pattern)
+  } catch {
+    /* не критично */
+  }
+}

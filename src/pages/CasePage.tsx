@@ -7,7 +7,7 @@ import { CATALOG } from '../shared/catalog'
 import { fmt, fmtX } from '../shared/money'
 import { rpc, type Item, type Me } from '../lib/api'
 import { applyMe, useGame } from '../store/game'
-import { dropSound, sfx } from '../audio/sfx'
+import { dropSound, haptic, sfx } from '../audio/sfx'
 import { Roulette } from '../components/Roulette'
 import { prewarmCase } from '../art/three3d'
 import { Cinematic, detectCinema, type CineEvent } from '../components/Cinematic'
@@ -54,6 +54,7 @@ export default function CasePage() {
     const best = items.reduce((a, b) => (b.price > a.price ? b : a))
     const gold = best.rarity >= 6 || best.phase >= 2
     dropSound(best.rarity, best.phase)
+    haptic(gold ? [30, 40, 60, 40, 90] : best.rarity >= 4 ? [30, 40, 60] : 12)
     if (best.rarity >= 4 || gold) setFx({ confetti: Date.now(), flash: gold ? '#ffc93c' : rc(best.rarity), shake: true, gold })
     setTimeout(() => setFx((f) => ({ ...f, shake: false, flash: '' })), 800)
     useGame.getState().addItems(items)
@@ -91,6 +92,7 @@ export default function CasePage() {
     const r = await run(async () => applyMe(await rpc<{ amount: number; me: Me; removed: number[] }>('sell_items', { p_ids: ids })))
     if (!r) return
     sfx('sell')
+    haptic(15)
     useGame.getState().removeItems(r.removed)
     setDrops((d) => d.filter((x) => !ids.includes(x.id)))
   }
@@ -143,7 +145,7 @@ export default function CasePage() {
                   <div className="flex flex-wrap justify-center gap-2">
                     {drops.map((d) => (
                       <div key={d.id} className="w-[30%] min-w-[104px] max-w-[190px] sm:w-[18%]"><ItemCard i={d} compact footer={
-                        <button onClick={() => sell([d.id])} className="mt-1 w-full rounded-lg bg-white/10 py-1 text-[10px] font-bold hover:bg-white/20">Продать</button>
+                        <button onClick={() => sell([d.id])} className="mt-1 min-h-9 w-full rounded-lg bg-white/10 text-xs font-bold hover:bg-white/20">Продать</button>
                       } /></div>
                     ))}
                   </div>
