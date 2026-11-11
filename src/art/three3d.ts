@@ -158,32 +158,38 @@ function extrude(E: Engine, key: string, d: string, depth: number, bevel: number
   return g
 }
 
-export interface ItemSpec { item: string; phase: number; wear: number }
+export interface ItemSpec { item: string; phase: number; wear: number; variant?: number }
 
 
 /* ------------------- настоящие 3D-модели (GLB из public/models) ------------------- */
 const MODEL_SHAPES = new Set(Object.keys(modelManifest))
+const VARIANTS = (shape: string) => (modelManifest as Record<string, unknown[]>)[shape]?.length ?? 0
 
 /** Дополнительный поворот после автовыравнивания (градусы XYZ): ствол/лезвие вправо, верх вверх. */
 /** Модели с почти чёрной родной текстурой: поднимаем яркость для маски покраски. */
 const LIFT: Record<string, number> = { shotgun: 0.03, pdw: 0.03 }
 
 const ORIENT: Record<string, { auto?: boolean; r?: [number, number, number] }> = {
+  // у этих моделей ствол после автовыравнивания смотрит влево — разворачиваем вокруг вертикали
+  'revolver-1': { r: [0, 180, 0] },
+  'revolver-2': { r: [0, 180, 0] },
+  'sniper-1': { r: [0, 180, 0] },
   glove: { auto: false },
   gauntlet: { auto: false },
 }
 
 const templates = new Map<string, Promise<{ meshes: T.Mesh[]; size: T.Vector3 } | null>>()
 
-async function loadTemplate(E: Engine, shape: string) {
-  let p = templates.get(shape)
+async function loadTemplate(E: Engine, shape: string, variant = 0) {
+  const tkey = variant ? `${shape}-${variant}` : shape
+  let p = templates.get(tkey)
   if (p) return p
   p = (async () => {
     try {
       const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js')
       const { MeshoptDecoder } = await import('three/examples/jsm/libs/meshopt_decoder.module.js')
       const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder)
-      const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}models/${shape}.glb`)
+      const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}models/${tkey}.glb`)
       const { THREE } = E
       gltf.scene.updateMatrixWorld(true)
       // запекаем мировые трансформы в геометрию: дальше у мешей единичная матрица
@@ -213,7 +219,7 @@ async function loadTemplate(E: Engine, shape: string) {
       const box = new THREE.Box3()
       meshes.forEach((m) => box.expandByObject(m))
       const size = box.getSize(new THREE.Vector3())
-      const cfg = ORIENT[shape] ?? {}
+      const cfg = ORIENT[tkey] ?? ORIENT[shape] ?? {}
       if (cfg.auto !== false) {
         const axes = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)]
         const order = [0, 1, 2].sort((a, b) => [size.x, size.y, size.z][b] - [size.x, size.y, size.z][a])
@@ -239,7 +245,7 @@ async function loadTemplate(E: Engine, shape: string) {
       return null
     }
   })()
-  templates.set(shape, p)
+  templates.set(tkey, p)
   return p
 }
 
@@ -305,7 +311,9 @@ function paintMaterial(E: Engine, src: T.Material, skin: T.Texture, size: T.Vect
 }
 
 async function buildModelItem(E: Engine, def: ItemDef, spec: ItemSpec): Promise<T.Group | null> {
-  const tpl = await loadTemplate(E, def.shape)
+  const nv = VARIANTS(def.shape)
+  const variant = spec.variant ?? (nv > 1 ? hash(def.id) % nv : 0)
+  const tpl = await loadTemplate(E, def.shape, variant)
   if (!tpl) return null
   const { THREE } = E
   const skin = await svgTexture(E, skinTextureSvg(def, spec.phase, spec.wear))
@@ -603,7 +611,7 @@ function lightRig(E: Engine, scene: T.Scene) {
 
 
 /* ---------- постоянный кэш снимков (IndexedDB): повторные заходы не рендерят заново ---------- */
-const ART_VER = 'a6'
+const ART_VER = 'a8'
 let dbp: Promise<IDBDatabase | null> | null = null
 function idb(): Promise<IDBDatabase | null> {
   if (!dbp)
@@ -646,7 +654,7 @@ const cache = new Map<string, string>()
 const pending = new Map<string, Promise<string | null>>()
 let queue: Promise<unknown> = Promise.resolve()
 
-const keyOf = (s: ItemSpec) => `i:${s.item}:${s.phase}:${s.wear >= 3 ? s.wear : 0}`
+const keyOf = (s: ItemSpec) => `i:${s.item}:${s.phase}:${s.wear >= 3 ? s.wear : 0}${s.variant !== undefined ? ':v' + s.variant : ''}`
 
 export const peekItem = (s: ItemSpec): string | null => cache.get(keyOf({ ...s, wear: s.wear >= 3 ? s.wear : 0 })) ?? null
 export const peekCase = (id: string): string | null => cache.get('c:' + id) ?? null

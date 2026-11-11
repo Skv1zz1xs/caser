@@ -1,8 +1,24 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { CATALOG } from '../shared/catalog'
 import { Cinematic, type CineKind } from '../components/Cinematic'
+import { renderItem } from '../art/three3d'
+import modelManifest from '../../scripts/models/manifest.json'
 import { CaseCover, ItemArt } from '../components/ui'
+
+function VariantCell({ itemId, variant, label }: { itemId: string; variant: number; label: string }) {
+  const [src, setSrc] = useState('')
+  useEffect(() => {
+    let on = true
+    void renderItem({ item: itemId, phase: 0, wear: 0, variant }).then((u) => on && u && setSrc(u))
+    return () => {
+      on = false
+    }
+  }, [itemId, variant])
+  return (
+    <div className="item-card p-1"><img src={src || undefined} alt="" className="h-28 w-full object-contain" /><div className="text-center text-[10px] text-mute">{label}</div></div>
+  )
+}
 
 /** Служебная страница #/gallery: проверка 3D-графики. */
 export default function Gallery() {
@@ -23,6 +39,17 @@ export default function Gallery() {
       byShape.set(it.shape, list)
     }
   const cells = [...byShape.entries()].flatMap(([, l]) => l.slice(0, 2))
+  if (sp.get('variants')) {
+    const cells = Object.entries(modelManifest as Record<string, unknown[]>).flatMap(([shape, list]) => {
+      const item = CATALOG.cases.flatMap((c) => c.items).find((i) => i.shape === shape)
+      return item ? list.map((_, v) => ({ shape, v, id: item.id })) : []
+    })
+    return (
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6" data-testid="variants">
+        {cells.map((c) => <VariantCell key={c.shape + c.v} itemId={c.id} variant={c.v} label={c.shape + '-' + c.v} />)}
+      </div>
+    )
+  }
   return (
     <div className="space-y-4">
       <Cinematic ev={ev} onDone={() => setEv(null)} />

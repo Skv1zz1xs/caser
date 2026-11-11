@@ -18,7 +18,8 @@ const manifest = JSON.parse(fs.readFileSync(new URL('./manifest.json', import.me
 await MeshoptEncoder.ready
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.encoder': MeshoptEncoder })
 
-for (const [shape, cfg] of Object.entries(manifest)) {
+for (const [shape, variants] of Object.entries(manifest))
+  for (const [vi, cfg] of variants.entries()) {
   if (only.length && !only.includes(shape)) continue
   const dir = path.join(srcRoot, cfg.src)
   const file = fs.readdirSync(dir).find((f) => f.endsWith('.gltf') || f.endsWith('.glb'))
@@ -39,7 +40,7 @@ for (const [shape, cfg] of Object.entries(manifest)) {
     textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [1024, 1024], quality: 82 }),
     meshopt({ encoder: MeshoptEncoder, level: 'medium' }),
   )
-  const out = new URL(`../../public/models/${shape}.glb`, import.meta.url).pathname
+  const out = new URL(`../../public/models/${shape}${vi ? '-' + vi : ''}.glb`, import.meta.url).pathname
   await io.write(out, doc)
-  console.log(shape.padEnd(10), (fs.statSync(out).size / 1024).toFixed(0).padStart(6), 'KB')
+  console.log((shape + (vi ? '-' + vi : '')).padEnd(12), (fs.statSync(out).size / 1024).toFixed(0).padStart(6), 'KB')
 }

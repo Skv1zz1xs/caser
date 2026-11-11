@@ -9,6 +9,24 @@
   "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
  },
  {
+  "shape": "rifle",
+  "title": "AKM | Free Lowpoly",
+  "author": "Vlasov Daniil",
+  "authorUrl": "https://sketchfab.com/dan741vlasov",
+  "url": "https://sketchfab.com/3d-models/akm-free-lowpoly-409c8845a8034f92b860fdff752dc2dc",
+  "license": "CC Attribution",
+  "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
+ },
+ {
+  "shape": "rifle",
+  "title": "AK-47S",
+  "author": "Frostoise",
+  "authorUrl": "https://sketchfab.com/Frostoise",
+  "url": "https://sketchfab.com/3d-models/ak-47s-07065c43bdb2459ca8faf7a99b075b9b",
+  "license": "CC Attribution",
+  "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
+ },
+ {
   "shape": "carbine",
   "title": "Classic M4",
   "author": "SpatialNeglect",
@@ -45,6 +63,15 @@
   "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
  },
  {
+  "shape": "sniper",
+  "title": "Kar98k Free Model",
+  "author": "Danya",
+  "authorUrl": "https://sketchfab.com/dsamuta",
+  "url": "https://sketchfab.com/3d-models/kar98k-free-model-e88c90c8e203401fa28e8f4ef03e657f",
+  "license": "CC Attribution",
+  "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
+ },
+ {
   "shape": "lmg",
   "title": "LMG",
   "author": "DJMaesen",
@@ -72,11 +99,38 @@
   "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
  },
  {
+  "shape": "pistol",
+  "title": "Kimber 1911",
+  "author": "m.daneshyab",
+  "authorUrl": "https://sketchfab.com/m.daneshyab",
+  "url": "https://sketchfab.com/3d-models/kimber-1911-12b70050f764456fb4db69a37a96c505",
+  "license": "CC Attribution",
+  "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
+ },
+ {
   "shape": "revolver",
   "title": "High Caliber Revolver",
   "author": "Comrade1280",
   "authorUrl": "https://sketchfab.com/comrade1280",
   "url": "https://sketchfab.com/3d-models/high-caliber-revolver-038416d7fb2649e2833d5989b47885db",
+  "license": "CC Attribution",
+  "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
+ },
+ {
+  "shape": "revolver",
+  "title": "GameReady: Colt Python Revolver",
+  "author": "HYQQM",
+  "authorUrl": "https://sketchfab.com/HYQQM",
+  "url": "https://sketchfab.com/3d-models/gameready-colt-python-revolver-3def6e3980e64dfa832f298004ce1b94",
+  "license": "CC Attribution",
+  "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
+ },
+ {
+  "shape": "revolver",
+  "title": "Revolver Navy Colt 1851 Silver",
+  "author": "Johan Pindeville",
+  "authorUrl": "https://sketchfab.com/johanpindeville",
+  "url": "https://sketchfab.com/3d-models/revolver-navy-colt-1851-silver-c254bb8ee01a4d9db9e6bbdc652d6c11",
   "license": "CC Attribution",
   "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
  },
@@ -108,6 +162,15 @@
   "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
  },
  {
+  "shape": "claw",
+  "title": "KARAMBIT",
+  "author": "AvnisT",
+  "authorUrl": "https://sketchfab.com/AvnisT",
+  "url": "https://sketchfab.com/3d-models/karambit-bd5b24edd9c54f6a908490f246cb45ff",
+  "license": "CC Attribution",
+  "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
+ },
+ {
   "shape": "butterfly",
   "title": "Balisong Knife",
   "author": "cha",
@@ -126,6 +189,15 @@
   "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
  },
  {
+  "shape": "bayonet",
+  "title": "Bowie knife",
+  "author": "Redpool",
+  "authorUrl": "https://sketchfab.com/skanda.vishwanath3",
+  "url": "https://sketchfab.com/3d-models/bowie-knife-793322ff35f9436b8c88fc56009c690e",
+  "license": "CC Attribution",
+  "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
+ },
+ {
   "shape": "dagger",
   "title": "\"Kama\" Dagger",
   "author": "Arms Museum",
@@ -135,11 +207,29 @@
   "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/"
  },
  {
+  "shape": "dagger",
+  "title": "Stiletto",
+  "author": "re1monsen",
+  "authorUrl": "https://sketchfab.com/re1monsen",
+  "url": "https://sketchfab.com/3d-models/stiletto-05c80a40e6754e0583ebce3bf285c545",
+  "license": "CC Attribution",
+  "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
+ },
+ {
   "shape": "cleaver",
   "title": "Kukri + Skins",
   "author": "ELIZION",
   "authorUrl": "https://sketchfab.com/ELIZION",
   "url": "https://sketchfab.com/3d-models/kukri-skins-489e7231712a4c008bdc7a6cc4da06cc",
+  "license": "CC Attribution",
+  "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
+ },
+ {
+  "shape": "cleaver",
+  "title": "Machete",
+  "author": "Belonosoff",
+  "authorUrl": "https://sketchfab.com/Belonosoff",
+  "url": "https://sketchfab.com/3d-models/machete-340a3bed238f48b0aa169c38e1e75066",
   "license": "CC Attribution",
   "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
  },
