@@ -77,6 +77,7 @@ test('апгрейдер и контракт', async ({ page }) => {
   const errs = watch(page)
   await login(page, 'Апер' + uniq())
   await farm(page)
+  await farm(page)
 
   await page.goto('/#/upgrade')
   await page.getByTestId('picker').locator('.item-card').first().click()

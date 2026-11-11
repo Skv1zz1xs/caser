@@ -38,12 +38,25 @@ export default function Contracts() {
       return n
     })
   }
+  /** Подбирает набор, который пройдёт проверку: сначала самые дешёвые предметы низшей редкости, потом самые дорогие. */
   const autoFill = () => {
-    const r = rarity ?? items.reduce<number | null>((best, i) => (i.rarity < 7 && items.filter((x) => x.rarity === i.rarity).length >= CONTRACT.minItems && (best === null || i.rarity < best) ? i.rarity : best), null)
-    if (r === null) return
-    const pool = items.filter((i) => i.rarity === r).sort((a, b) => a.price - b.price).slice(0, CONTRACT.maxItems)
-    setRes(null)
-    setSel(new Set(pool.map((i) => i.id)))
+    const rarities = [...new Set(items.filter((i) => i.rarity < 7).map((i) => i.rarity))].sort((x, y) => (rarity !== null ? (x === rarity ? -1 : y === rarity ? 1 : x - y) : x - y))
+    for (const r of rarities) {
+      const pool = items.filter((i) => i.rarity === r)
+      if (pool.length < CONTRACT.minItems) continue
+      const asc = [...pool].sort((a, b) => a.price - b.price)
+      const desc = [...asc].reverse()
+      for (const list of [asc, desc])
+        for (let n = CONTRACT.minItems; n <= Math.min(CONTRACT.maxItems, list.length); n++) {
+          const pick = list.slice(0, n)
+          if (contractCheck(pick).ok) {
+            setRes(null)
+            setSel(new Set(pick.map((i) => i.id)))
+            return
+          }
+        }
+    }
+    useGame.getState().toast('Не нашёл подходящий набор: нужно от 3 предметов одной редкости', 'info')
   }
   const sign = async () => {
     if (!check?.ok || busy) return
