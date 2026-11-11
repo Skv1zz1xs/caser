@@ -243,7 +243,7 @@ export function Chat() {
 function MoreSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const sound = useGame((s) => s.sound)
   const setG = useGame((s) => s.set)
-  const extra = [NAV[3], NAV[4], NAV[5], NAV[6], { to: '/bonus', label: 'Бонусы', icon: Gift }, { to: '/profile', label: 'Профиль', icon: User }, { to: '/fair', label: 'Честность', icon: ShieldCheck }]
+  const extra = [NAV[3], NAV[4], NAV[5], NAV[6], { to: '/bonus', label: 'Бонусы', icon: Gift }, { to: '/profile', label: 'Профиль', icon: User }, { to: '/fair', label: 'Честность', icon: ShieldCheck }, { to: '/credits', label: 'Авторы', icon: Award }]
   return (
     <AnimatePresence>
       {open && (

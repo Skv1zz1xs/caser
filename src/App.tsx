@@ -13,6 +13,7 @@ import { BattleRoom, Battles } from './pages/Battles'
 import { Bonus, Coinflip, Pass, Top } from './pages/More'
 import { Fair, Profile } from './pages/Profile'
 import Gallery from './pages/Gallery'
+import Credits from './pages/Credits'
 
 function ScrollTop() {
   const { pathname } = useLocation()
@@ -53,6 +54,7 @@ export default function App() {
             <Route path="/profile/:nick" element={<Profile />} />
             <Route path="/fair" element={<Fair />} />
             <Route path="/gallery" element={<Gallery />} />
+            <Route path="/credits" element={<Credits />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Layout>

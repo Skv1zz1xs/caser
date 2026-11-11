@@ -58,6 +58,7 @@ export function Profile() {
           {own && (
             <div className="flex gap-2">
               <Link to="/fair" className="glass flex h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-bold"><ShieldCheck size={14} className="text-ok" />Честность</Link>
+              <Link to="/credits" className="glass flex h-10 items-center rounded-xl px-3 text-xs font-bold text-mute">Авторы моделей</Link>
               <Btn kind="ghost" onClick={logout} testId="logout"><LogOut size={15} />Выйти</Btn>
             </div>
           )}
