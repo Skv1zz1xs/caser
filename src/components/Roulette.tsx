@@ -56,7 +56,7 @@ const CellView = memo(function CellView({ cell, w, h, hide, win }: { cell: Cell;
         ) : (
           <ItemArt i={cell} className="h-[78%] w-[92%]" />
         )}
-        {win && h > 70 && <div className="absolute bottom-1.5 text-[10px] font-extrabold">{fmtShort(cell.price)}</div>}
+        {win && h > 70 && <div className="absolute bottom-1.5 z-10 rounded bg-[#0b1226]/80 px-1.5 text-[10px] font-extrabold">{fmtShort(cell.price)}</div>}
       </div>
     </div>
   )
@@ -131,7 +131,7 @@ export function Roulette({
       {/* затемнение краёв и указатель */}
       <div className="pointer-events-none absolute inset-y-0 left-0 w-[18%] bg-gradient-to-r from-bg to-transparent" />
       <div className="pointer-events-none absolute inset-y-0 right-0 w-[18%] bg-gradient-to-l from-bg to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 bg-gold shadow-[0_0_12px_2px_rgba(255,201,60,.9)]" />
+      <div className="pointer-events-none absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 bg-gold/60 shadow-[0_0_12px_2px_rgba(255,201,60,.6)]" />
       <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 border-x-[7px] border-t-[9px] border-x-transparent border-t-gold" />
       <div className="pointer-events-none absolute left-1/2 bottom-0 -translate-x-1/2 border-x-[7px] border-b-[9px] border-x-transparent border-b-gold" />
     </div>

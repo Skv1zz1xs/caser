@@ -105,7 +105,7 @@ export default function CasePage() {
 
       <div className="flex items-center gap-3">
         <button onClick={() => nav(-1)} aria-label="Назад" className="grid size-10 place-items-center rounded-full glass"><ChevronLeft size={18} /></button>
-        <CaseCover c={c} size={64} />
+        <CaseCover c={c} size={96} />
         <div className="min-w-0 flex-1">
           <h1 className="display truncate text-lg sm:text-2xl font-extrabold">{c.name}</h1>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-mute">

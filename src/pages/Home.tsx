@@ -14,9 +14,9 @@ function CaseTile({ c, tickets }: { c: CaseDef; tickets: number }) {
   return (
     <motion.div whileHover={{ y: -4 }} transition={{ duration: 0.15 }}>
       <Link to={'/case/' + c.id} onClick={() => sfx('click')} data-testid={'case-' + c.id}
-        className={cx('glass group relative flex flex-col items-center rounded-3xl px-2 pb-3 pt-2 text-center transition hover:border-white/25', elite && 'border-gold/40')}>
+        className={cx('group relative flex flex-col items-center rounded-3xl border bg-gradient-to-b from-[#121a33] to-[#0a1024] px-2 pb-3 pt-2 text-center transition duration-300 hover:-translate-y-1', elite ? 'border-gold/50 shadow-[0_0_24px_rgb(255_201_60/.15)]' : 'border-[#2c4aa8]/40 hover:border-[#5b8cff]/70')}>
         {tickets > 0 && <span className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-full bg-ok/20 px-2 py-0.5 text-[10px] font-extrabold text-ok"><Ticket size={11} />×{tickets}</span>}
-        <CaseCover c={c} size={112} />
+        <div className="-mt-3 -mb-1"><CaseCover c={c} size={150} /></div>
         <div className={cx('display mt-1 w-full truncate text-[13px] font-bold', elite && 'gold-text')}>{c.name}</div>
         <div className="w-full truncate text-[10px] text-mute">{c.tagline}</div>
         <div className="mt-2 flex items-center gap-2">

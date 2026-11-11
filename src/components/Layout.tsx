@@ -216,7 +216,7 @@ export function Chat() {
         {chat.length === 0 && <div className="py-8 text-center text-xs text-mute">Тут пока тихо. Напиши первым!</div>}
         {chat.map((m) =>
           m.kind === 'system' ? (
-            <div key={m.id} className="rounded-xl bg-gold/10 px-3 py-1.5 text-center text-[11px] font-semibold text-gold">{m.body}</div>
+            <div key={m.id} className={cx('px-3 py-1 text-center text-xs', /дожд/i.test(m.body) ? 'rounded-xl bg-gold/10 font-semibold text-gold' : 'text-[#7f8bb0]')}>{m.body}</div>
           ) : (
             <div key={m.id} className="flex gap-2">
               <Link to={'/profile/' + encodeURIComponent(m.nick)}><Avatar n={m.avatar} size={28} /></Link>

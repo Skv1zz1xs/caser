@@ -243,17 +243,17 @@ async function loadTemplate(E: Engine, shape: string) {
 const NO_PAINT = /glass|lens|reticle|bullet|brass|casing|ammo|screen|hologram/i
 
 /** Накладывает скин на материал: проекция с трёх сторон + сохранение яркости/деталей оригинала. */
-function paintMaterial(E: Engine, src: T.Material, skin: T.Texture, size: T.Vector3, opts: { paint: number; gloss: number; glow: number }): T.Material {
+function paintMaterial(E: Engine, src: T.Material, skin: T.Texture, size: T.Vector3, opts: { paint: number; gloss: number; glow: number; wear: number; scale: number }): T.Material {
   const { THREE } = E
   const mat = (src as T.MeshStandardMaterial).clone()
   const std = mat as T.MeshStandardMaterial
   if (!(std as any).isMeshStandardMaterial) return mat
   if (NO_PAINT.test(src.name) || src.transparent || (std.emissive.getHex() !== 0 && std.emissiveIntensity > 0.5)) return mat
   std.envMapIntensity = 1.35
-  const s = Math.max(size.x / 2, size.y)
+  const s = Math.max(size.x / 2, size.y) * opts.scale
   const uniforms = {
     uSkin: { value: skin }, uHalf: { value: new THREE.Vector3(size.x / 2, size.y / 2, size.z / 2) }, uS: { value: s },
-    uPaint: { value: opts.paint }, uGloss: { value: opts.gloss }, uGlow: { value: opts.glow },
+    uWear: { value: opts.wear }, uPaint: { value: opts.paint }, uGloss: { value: opts.gloss }, uGlow: { value: opts.glow },
   }
   std.onBeforeCompile = (sh: any) => {
     Object.assign(sh.uniforms, uniforms)
@@ -261,7 +261,7 @@ function paintMaterial(E: Engine, src: T.Material, skin: T.Texture, size: T.Vect
       .replace('#include <common>', '#include <common>\nvarying vec3 vOP; varying vec3 vON;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvOP = position; vON = normal;')
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vOP; varying vec3 vON; uniform sampler2D uSkin; uniform vec3 uHalf; uniform float uS, uPaint, uGloss, uGlow;\nvec3 zSkin = vec3(0.0); float zPaint = 0.0;')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vOP; varying vec3 vON; uniform sampler2D uSkin; uniform vec3 uHalf; uniform float uS, uPaint, uGloss, uGlow, uWear;\nvec3 zSkin = vec3(0.0); float zPaint = 0.0;')
       .replace(
         '#include <map_fragment>',
         `#include <map_fragment>
@@ -275,15 +275,25 @@ function paintMaterial(E: Engine, src: T.Material, skin: T.Texture, size: T.Vect
           zSkin = sSide * an.z + sTop * an.y + sEnd * an.x;
           float l = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
           float k = clamp(0.72 + 0.95 * pow(l, 0.65), 0.72, 1.35);
-          zPaint = uPaint;
-          diffuseColor.rgb = mix(diffuseColor.rgb, zSkin * k, zPaint);
+          // тёмные детали (оптика, резина, полимер) остаются родными — красится только корпус
+          zPaint = uPaint * smoothstep(0.0015, 0.016, l);
+          // потёртости: пятна голого металла по шумовой маске
+          vec3 q = vOP * (9.0 / max(uS, 1e-3));
+          float nz = fract(sin(dot(floor(q), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+          float nz2 = fract(sin(dot(floor(q * 2.3), vec3(39.346, 11.135, 83.155))) * 24634.6345);
+          float wearMask = smoothstep(1.0 - uWear * 1.6, 1.0, nz * 0.6 + nz2 * 0.4) * step(0.001, uWear);
+          vec3 painted = zSkin * k;
+          painted = mix(painted, vec3(0.62, 0.64, 0.68), wearMask);
+          zPaint *= 1.0;
+          diffuseColor.rgb = mix(diffuseColor.rgb, painted, zPaint);
+          zSkin *= (1.0 - wearMask);
         }`,
       )
       .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n metalnessFactor = mix(metalnessFactor, 0.3, zPaint * uGloss);')
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, 0.34, zPaint * uGloss * 0.7);')
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += zSkin * uGlow * zPaint;')
   }
-  std.customProgramCacheKey = () => 'skin-v1'
+  std.customProgramCacheKey = () => 'skin-v2'
   return mat
 }
 
@@ -295,7 +305,7 @@ async function buildModelItem(E: Engine, def: ItemDef, spec: ItemSpec): Promise<
   skin.wrapS = skin.wrapT = THREE.MirroredRepeatWrapping
   const isGlove = def.kind === 'glove'
   const gem = spec.phase >= 2
-  const opts = { paint: isGlove ? 0.88 : 0.95, gloss: isGlove ? 0.15 : 1, glow: gem ? (spec.phase === 3 ? 0.55 : 0.4) : 0 }
+  const opts = { paint: isGlove ? 0.88 : 0.95, gloss: isGlove ? 0.15 : 1, glow: gem ? (spec.phase === 3 ? 0.55 : 0.4) : 0, wear: spec.wear >= 4 ? 0.5 : spec.wear === 3 ? 0.24 : 0.04, scale: isGlove ? 0.4 : 1 }
   const mats = new Map<T.Material, T.Material>()
   const pivot = new THREE.Group()
   for (const m of tpl.meshes) {
