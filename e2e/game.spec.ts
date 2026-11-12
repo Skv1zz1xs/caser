@@ -252,6 +252,21 @@ test('рейд-кейс: двое скидываются, общий прокр�
   await cb.close()
 })
 
+test('альбом скинов: после открытия кейса прогресс растёт', async ({ page }) => {
+  const errs = watch(page)
+  await login(page, 'Альбом' + uniq())
+  await farm(page)
+  await page.goto('/#/album')
+  await expect(page.getByTestId('album-grid')).toBeVisible()
+  await expect.poll(async () => Number(((await page.getByTestId('album-total').textContent()) ?? '').split('/')[0])).toBeGreaterThan(0)
+  await page.getByTestId('album-meloch').click()
+  await expect(page.getByTestId('album-items')).toBeVisible()
+  await expect(page.getByTestId('album-claim')).toBeDisabled()
+  await shot(page, '30-album')
+  await noHScroll(page)
+  expect(errs).toEqual([])
+})
+
 test('два игрока: общий чат и батл друг с другом', async ({ browser }) => {
   const vp = test.info().project.use.viewport!
   const ca = await browser.newContext({ viewport: vp })
