@@ -1,5 +1,5 @@
 import {
-  ACHIEVEMENTS, BATTLE, BONUS, CASE_ECON, COIN, COINFLIP, CONTRACT, COUNTER, CRASH, FREE_TABLE, LIMITS, PASS, PHASES,
+  ACHIEVEMENTS, BATTLE, BONUS, CASE_ECON, COIN, COINFLIP, CONTRACT, COUNTER, CRASH, RAID, FREE_TABLE, LIMITS, PASS, PHASES,
   PROFILES, QUESTS, RARITIES, RISK_TABLES, UPGRADE, WEAR, WEAR_PRICE,
 } from '../config/economy'
 import { CASE_CONTENT, type CaseCategory } from '../config/cases'
@@ -253,7 +253,7 @@ function build() {
     )
   const sig = JSON.stringify([
     cases.map((c) => [c.id, c.price, c.outcomes.map((o) => [o.itemId, o.phase, o.weight, o.price])]),
-    UPGRADE, CONTRACT, BATTLE, COINFLIP, CRASH, BONUS, PASS, QUESTS, ACHIEVEMENTS, WEAR, WEAR_PRICE, COUNTER, LIMITS,
+    UPGRADE, CONTRACT, BATTLE, COINFLIP, CRASH, RAID, BONUS, PASS, QUESTS, ACHIEVEMENTS, WEAR, WEAR_PRICE, COUNTER, LIMITS,
   ])
   return { cases, caseById, itemById, outcomes, version: fnv(sig, 0x811c9dc5) + fnv(sig, 0x9747b28c) }
 }

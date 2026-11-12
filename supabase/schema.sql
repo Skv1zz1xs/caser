@@ -26,7 +26,7 @@ begin
          'login','logout','sync','get_inventory','open_case','sell_items','sell_below','chat_send',
          'fair_state','fair_rotate','fair_set_client_seed','fair_rolls','leaderboard','get_profile','set_avatar',
          'upgrade','contract','battle_create','battle_join','battle_add_bot','battle_leave','get_battle',
-         'coinflip_create','coinflip_join','coinflip_bot','coinflip_cancel','crash_state','crash_bet','crash_cashout',
+         'coinflip_create','coinflip_join','coinflip_bot','coinflip_cancel','crash_state','crash_bet','crash_cashout','raid_create','raid_contribute','raid_leave','raid_cancel','raid_list','get_raid',
          'claim','bonus_free_case','bonus_daily','bonus_second_chance','promo_redeem','rain_join']))
   loop
     execute 'drop function if exists ' || r.sig || ' cascade';
@@ -168,6 +168,30 @@ create table if not exists public.crash_bets (
   primary key (round_id, profile_id)
 );
 
+create table if not exists public.raids (
+  id          uuid primary key default gen_random_uuid(),
+  status      text not null default 'open',   -- open | done | cancelled
+  case_id     text not null,
+  creator     uuid not null,
+  target      bigint not null,
+  pot         bigint not null default 0,
+  seed_id     bigint not null,
+  seed_hash   text not null,
+  result      jsonb,
+  payouts     jsonb,
+  started_at  timestamptz,
+  ends_at     timestamptz,
+  created_at  timestamptz not null default now()
+);
+create index if not exists raids_status_idx on public.raids (status, created_at desc);
+
+create table if not exists public.raid_shares (
+  raid_id     uuid not null references public.raids (id) on delete cascade,
+  profile_id  uuid not null references public.profiles (id) on delete cascade,
+  amount      bigint not null,
+  primary key (raid_id, profile_id)
+);
+
 create table if not exists public.seeds (
   id           bigint generated always as identity primary key,
   profile_id   uuid references public.profiles (id) on delete cascade,  -- null у сидов батлов и коинфлипов
@@ -304,7 +328,7 @@ create index if not exists cfg_outcomes_pool_idx on public.cfg_outcomes (rarity,
 do $$
 declare t text;
 begin
-  foreach t in array array['profiles','feed','chat','battles','coinflips','rain','sessions','auth_profiles','crash_rounds','crash_bets','seeds','secrets','rolls','items',
+  foreach t in array array['profiles','feed','chat','battles','coinflips','rain','sessions','auth_profiles','crash_rounds','crash_bets','raids','raid_shares','seeds','secrets','rolls','items',
                            'battle_results','pending_credits','counters','claims','recipe_uses','rain_joins',
                            'cfg_kv','cfg_cases','cfg_outcomes']
   loop
@@ -1494,7 +1518,7 @@ end $$;
 
 -- Уборка: зависшие лобби (создатель закрыл вкладку) отменяются с возвратом взносов.
 create function game.gc() returns void language plpgsql as $$
-declare b public.battles; c public.coinflips;
+declare b public.battles; c public.coinflips; r record;
 begin
   for b in select * from public.battles where status = 'open' and created_at < now() - interval '30 minutes' for update skip locked loop
     perform game.battle_refund(b, null);
@@ -1503,6 +1527,9 @@ begin
   for c in select * from public.coinflips where status = 'open' and created_at < now() - interval '30 minutes' for update skip locked loop
     update public.coinflips set status = 'cancelled' where id = c.id;
     update public.profiles set balance = balance + c.stake where id = c.creator;
+  end loop;
+  for r in select id from public.raids where status = 'open' and created_at < now() - interval '30 minutes' for update skip locked loop
+    perform game.raid_refund(r.id);
   end loop;
   delete from public.counters where period like 'd:%' and period < 'd:' || to_char(now() - interval '21 days', 'YYYY-MM-DD');
   delete from public.battles where status <> 'open' and created_at < now() - interval '7 days';
@@ -1787,6 +1814,152 @@ begin
   return jsonb_build_object('ok', true, 'mult', v_m, 'payout', v_pay, 'me', game.after(v_pid));
 end $$;
 
+
+-- =====================================================================================
+--  РЕЙД-КЕЙС: комната копит банк на один дорогой кейс, выигрыш делится по долям вклада
+-- =====================================================================================
+create function game.raid_view(p_id uuid, p_pid uuid) returns jsonb language plpgsql as $$
+declare r public.raids; v_seed text; v_ended boolean;
+begin
+  select * into r from public.raids where id = p_id;
+  if not found then return null; end if;
+  v_ended := r.ends_at is not null and now() >= r.ends_at;
+  if v_ended then select server_seed into v_seed from public.seeds where id = r.seed_id; end if;
+  return jsonb_build_object('id', r.id, 'status', r.status, 'case', r.case_id, 'target', r.target, 'pot', r.pot,
+    'creator', r.creator, 'seed_hash', r.seed_hash, 'started_at', game.ms(r.started_at), 'ends_at', game.ms(r.ends_at), 'now', game.ms(now()),
+    'mine', coalesce((select amount from public.raid_shares where raid_id = r.id and profile_id = p_pid), 0),
+    'shares', (select coalesce(jsonb_agg(jsonb_build_object('nick', p.nick, 'avatar', p.avatar, 'amount', s.amount, 'pid', s.profile_id) order by s.amount desc), '[]'::jsonb)
+               from public.raid_shares s join public.profiles p on p.id = s.profile_id where s.raid_id = r.id),
+    'result', r.result,
+    'payouts', case when v_ended then r.payouts end,
+    'seed', v_seed);
+end $$;
+
+create function game.raid_start(p_id uuid) returns void language plpgsql as $$
+declare r public.raids; cfg jsonb := game.cfg('raid'); v_srv text; h text; d record; v_val bigint; v_ends timestamptz; sh record; v_pay bigint; v_left bigint; v_big uuid; pays jsonb := '[]'::jsonb;
+begin
+  select * into r from public.raids where id = p_id for update;
+  select server_seed into v_srv from public.seeds where id = r.seed_id;
+  h := game.hmac_hex(v_srv, r.id::text || ':0');
+  select * into d from game.roll_drop(r.case_id, game.hex_int(substr(h, 1, 13)), game.hex_int(substr(h, 14, 8)), game.hex_int(substr(h, 22, 8)));
+  v_val := d.price;
+  v_ends := now() + make_interval(secs => ((cfg ->> 'roll_ms')::numeric + (cfg ->> 'end_ms')::numeric) / 1000);
+  v_left := v_val;
+  select profile_id into v_big from public.raid_shares where raid_id = r.id order by amount desc, profile_id limit 1;
+  for sh in select * from public.raid_shares where raid_id = r.id loop
+    v_pay := v_val * sh.amount / r.target;
+    v_left := v_left - v_pay;
+    pays := pays || jsonb_build_array(jsonb_build_object('pid', sh.profile_id, 'amount', v_pay));
+  end loop;
+  -- остаток от деления — самому крупному вкладчику
+  pays := (select jsonb_agg(case when x ->> 'pid' = v_big::text then jsonb_set(x, '{amount}', to_jsonb((x ->> 'amount')::bigint + v_left)) else x end) from jsonb_array_elements(pays) x);
+  update public.raids set status = 'done', started_at = now(), ends_at = v_ends, payouts = pays,
+    result = jsonb_build_object('case', r.case_id, 'idx', d.outcome_idx, 'item', d.item_id, 'phase', d.phase, 'rarity', d.rarity, 'fi', d.fi, 'st', d.st, 'price', d.price)
+    where id = r.id;
+  update public.seeds set revealed_at = v_ends where id = r.seed_id;
+  for sh in select (x ->> 'pid')::uuid pid, (x ->> 'amount')::bigint amt from jsonb_array_elements(pays) x loop
+    insert into public.pending_credits (profile_id, amount, available_at, reason) values (sh.pid, sh.amt, v_ends, 'raid');
+    perform game.bump(sh.pid, jsonb_build_object('raids', 1, 'raid_won', sh.amt));
+    update public.profiles set xp = xp + ((game.cfg('pass') #>> '{xp,raid}')::int * game.xpm()) where id = sh.pid;
+  end loop;
+  if v_val >= r.target * 5 then
+    perform game.add_chat(null, 'system', 'Рейд-кейс выбил предмет на ' || (v_val / 100) || ' монет — делим на всех участников');
+  end if;
+end $$;
+
+create function public.raid_create(p_case text) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
+declare v_pid uuid := game.pid(); cfg jsonb := game.cfg('raid'); c public.cfg_cases; v_seed bigint; v_hash text; v_id uuid;
+begin
+  select * into c from cfg_cases where case_id = p_case;
+  if not found or c.profile = 'free' then raise exception 'Нет такого кейса'; end if;
+  if c.price < (cfg ->> 'min_case')::bigint then raise exception 'Для рейда нужен кейс от % монет', (cfg ->> 'min_case')::bigint / 100; end if;
+  perform game.lock(v_pid);
+  if (select count(*) from raids where creator = v_pid and status = 'open') >= (cfg ->> 'open_max')::int then raise exception 'Слишком много открытых рейдов'; end if;
+  v_seed := game.new_seed(null);
+  select hash into v_hash from seeds where id = v_seed;
+  insert into raids (case_id, creator, target, seed_id, seed_hash) values (p_case, v_pid, c.price, v_seed, v_hash) returning id into v_id;
+  return jsonb_build_object('raid', game.raid_view(v_id, v_pid), 'me', game.after(v_pid));
+end $$;
+
+create function public.raid_contribute(p_id uuid, p_amount bigint) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
+declare v_pid uuid := game.pid(); cfg jsonb := game.cfg('raid'); r public.raids; p public.profiles; v_take bigint;
+begin
+  select * into r from raids where id = p_id for update;
+  if not found then raise exception 'Рейд не найден'; end if;
+  if r.status <> 'open' then raise exception 'Рейд уже закончился или отменён'; end if;
+  if p_amount is null or p_amount < (cfg ->> 'min_share')::bigint then raise exception 'Минимальный вклад — % монет', (cfg ->> 'min_share')::bigint / 100; end if;
+  v_take := least(p_amount, r.target - r.pot);
+  p := game.lock(v_pid);
+  if p.balance < v_take then raise exception 'Недостаточно монет'; end if;
+  update profiles set balance = balance - v_take where id = v_pid;
+  insert into raid_shares (raid_id, profile_id, amount) values (r.id, v_pid, v_take)
+    on conflict (raid_id, profile_id) do update set amount = raid_shares.amount + excluded.amount;
+  update raids set pot = pot + v_take where id = r.id returning * into r;
+  perform game.bump(v_pid, jsonb_build_object('spent', v_take));
+  if r.pot >= r.target then perform game.raid_start(r.id); end if;
+  return jsonb_build_object('raid', game.raid_view(r.id, v_pid), 'me', game.after(v_pid));
+end $$;
+
+create function public.raid_leave(p_id uuid) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
+declare v_pid uuid := game.pid(); r public.raids; v_amt bigint;
+begin
+  select * into r from raids where id = p_id for update;
+  if not found then raise exception 'Рейд не найден'; end if;
+  if r.status <> 'open' then raise exception 'Рейд уже закончился или отменён'; end if;
+  delete from raid_shares where raid_id = r.id and profile_id = v_pid returning amount into v_amt;
+  if v_amt is null then raise exception 'У тебя нет вклада в этом рейде'; end if;
+  perform game.lock(v_pid);
+  update profiles set balance = balance + v_amt where id = v_pid;
+  update raids set pot = pot - v_amt where id = r.id;
+  perform game.bump(v_pid, jsonb_build_object('spent', -v_amt));
+  return jsonb_build_object('raid', game.raid_view(r.id, v_pid), 'me', game.after(v_pid));
+end $$;
+
+create function game.raid_refund(p_id uuid) returns void language plpgsql as $$
+declare sh record;
+begin
+  for sh in select * from public.raid_shares where raid_id = p_id loop
+    update public.profiles set balance = balance + sh.amount where id = sh.profile_id;
+    perform game.bump(sh.profile_id, jsonb_build_object('spent', -sh.amount));
+  end loop;
+  delete from public.raid_shares where raid_id = p_id;
+  update public.raids set status = 'cancelled', pot = 0 where id = p_id;
+end $$;
+
+create function public.raid_cancel(p_id uuid) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
+declare v_pid uuid := game.pid(); r public.raids;
+begin
+  select * into r from raids where id = p_id for update;
+  if not found then raise exception 'Рейд не найден'; end if;
+  if r.status <> 'open' then raise exception 'Рейд уже закончился или отменён'; end if;
+  if r.creator <> v_pid then raise exception 'Отменить может только создатель'; end if;
+  perform game.raid_refund(r.id);
+  return jsonb_build_object('raid', game.raid_view(r.id, v_pid), 'me', game.after(v_pid));
+end $$;
+
+create function public.get_raid(p_id uuid) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
+declare v_pid uuid := game.pid(); v jsonb;
+begin
+  perform game.settle(v_pid);
+  v := game.raid_view(p_id, v_pid);
+  if v is null then raise exception 'Рейд не найден'; end if;
+  return v;
+end $$;
+
+create function public.raid_list() returns jsonb
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
+declare v_pid uuid := game.pid();
+begin
+  return (select coalesce(jsonb_agg(game.raid_view(x.id, v_pid) order by x.created_at desc), '[]'::jsonb)
+          from (select id, created_at from raids where status = 'open' or (status = 'done' and ends_at > now() - interval '3 minutes')
+                order by created_at desc limit 20) x);
+end $$;
+
 -- =====================================================================================
 --  ДОСТУП К ФУНКЦИЯМ: только вошедшим (authenticated), анонимной роли — ничего
 -- =====================================================================================
@@ -1800,7 +1973,7 @@ begin
       'login','logout','sync','get_inventory','open_case','sell_items','sell_below','chat_send',
       'fair_state','fair_rotate','fair_set_client_seed','fair_rolls','leaderboard','get_profile','set_avatar',
       'upgrade','contract','battle_create','battle_join','battle_add_bot','battle_leave','get_battle',
-      'coinflip_create','coinflip_join','coinflip_bot','coinflip_cancel','crash_state','crash_bet','crash_cashout',
+      'coinflip_create','coinflip_join','coinflip_bot','coinflip_cancel','crash_state','crash_bet','crash_cashout','raid_create','raid_contribute','raid_leave','raid_cancel','raid_list','get_raid',
       'claim','bonus_free_case','bonus_daily','bonus_second_chance','promo_redeem','rain_join'])
   loop
     execute 'revoke all on function ' || r.sig || ' from public, anon';

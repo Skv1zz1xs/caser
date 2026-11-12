@@ -205,6 +205,53 @@ test('краш: ставка, раунд доходит до падения, р�
   expect(errs).toEqual([])
 })
 
+test('рейд-кейс: двое скидываются, общий прокрут, выплаты по долям', async ({ browser }) => {
+  const vp = test.info().project.use.viewport!
+  const ca = await browser.newContext({ viewport: vp })
+  const cb = await browser.newContext({ viewport: vp })
+  const a = await ca.newPage()
+  const b = await cb.newPage()
+  const ea = watch(a)
+  const eb = watch(b)
+  await login(a, 'РейдА' + uniq())
+  await login(b, 'РейдБ' + uniq())
+  if (vp.width >= 1024) {
+    await a.getByTestId('nav-Игры').click() // выпадающее меню навигации
+    await expect(a.getByRole('link', { name: 'Рейд', exact: true })).toBeVisible()
+    await shot(a, '26-nav-menu')
+  }
+  await a.goto('/#/raids')
+  await a.getByTestId('raid-new').click()
+  await a.getByTestId('raidcase-piraty').click()
+  await expect(a.getByTestId('raid-room')).toHaveAttribute('data-status', 'open')
+  const url = a.url()
+  await a.getByTestId('raid-amount').fill('300')
+  await a.getByTestId('raid-contribute').click()
+  await expect(a.getByTestId('raid-shares')).toContainText('РейдА')
+  await shot(a, '27-raid-open')
+  await b.goto(url)
+  await expect(b.getByTestId('raid-room')).toHaveAttribute('data-status', 'open')
+  await expect(b.getByTestId('raid-shares')).toContainText('РейдА')
+  await b.getByTestId('raid-amount').fill('999')
+  await b.getByTestId('raid-contribute').click() // берётся только остаток 200
+  await expect(b.getByTestId('raid-room')).toHaveAttribute('data-status', 'done')
+  await expect(a.getByTestId('raid-room')).toHaveAttribute('data-status', 'done')
+  await expect(a.getByTestId('raid-roulette')).toBeVisible()
+  await expect(a.getByTestId('raid-room')).toHaveAttribute('data-over', '1', { timeout: 40000 })
+  await expect(b.getByTestId('raid-room')).toHaveAttribute('data-over', '1', { timeout: 40000 })
+  await expect(a.getByTestId('raid-payout').first()).toBeVisible()
+  await shot(a, '28-raid-done')
+  await shot(b, '29-raid-done-b')
+  await noHScroll(a)
+  await noHScroll(b)
+  // деньги сошлись: суммарно у двоих 2000 − 500 + стоимость дропа
+  await expect.poll(async () => (await balance(a)) + (await balance(b)), { timeout: 20000 }).toBeGreaterThan(200000 - 50000 - 1)
+  expect(ea).toEqual([])
+  expect(eb).toEqual([])
+  await ca.close()
+  await cb.close()
+})
+
 test('два игрока: общий чат и батл друг с другом', async ({ browser }) => {
   const vp = test.info().project.use.viewport!
   const ca = await browser.newContext({ viewport: vp })

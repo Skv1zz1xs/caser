@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Backpack, CloudRain, Coins, FileSignature, Gift, LayoutGrid, Menu, MessageCircle, Send, ShieldCheck, Swords, TrendingUp, Trophy, User,
-  Volume2, VolumeX, X, Award, TriangleAlert, Zap, Rocket,
+  Volume2, VolumeX, X, Award, TriangleAlert, Zap, Rocket, Users,
 } from 'lucide-react'
 import { BONUS } from '../config/economy'
 import { CATALOG } from '../shared/catalog'
@@ -23,7 +23,11 @@ const NAV = [
   { to: '/top', label: 'Топ', icon: Trophy },
   { to: '/inventory', label: 'Инвентарь', icon: Backpack },
   { to: '/crash', label: 'Краш', icon: Rocket },
+  { to: '/raids', label: 'Рейд', icon: Users },
 ]
+const NAV_TOP = [NAV[0], NAV[1], NAV[2], NAV[3], NAV[7]]
+const NAV_GAMES = [NAV[4], NAV[8], NAV[9]]
+const NAV_MORE = [NAV[5], NAV[6], { to: '/bonus', label: 'Бонусы', icon: Gift }, { to: '/fair', label: 'Честность', icon: ShieldCheck }, { to: '/credits', label: 'Авторы моделей', icon: Award }]
 const MOBILE = [NAV[0], NAV[1], NAV[2], NAV[7]]
 
 function Logo() {
@@ -61,8 +65,45 @@ function EventChip() {
   if (!ev) return null
   const on = ev.on && now < ev.ends_at
   return (
-    <div data-testid="event-chip" data-on={on ? '1' : '0'} className={cx('hidden h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-bold md:flex', on ? 'bg-gold/20 text-gold pulse-ring' : 'bg-white/6 text-mute')} title="Раз в 40 минут на 5 минут весь опыт удваивается">
-      <Zap size={14} />{on ? <>Час залёта x2 XP · {mmss(ev.ends_at - now)}</> : <>Час залёта через {mmss(Math.max(0, ev.next_at - now))}</>}
+    <div data-testid="event-chip" data-on={on ? '1' : '0'} className={cx('hidden h-10 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-xs font-bold 2xl:flex', on ? 'bg-gold/20 text-gold pulse-ring' : 'bg-white/6 text-mute')} title="Раз в 40 минут на 5 минут весь опыт удваивается">
+      <Zap size={14} />{on ? <>x2 XP · {mmss(ev.ends_at - now)}</> : <>залёт через {mmss(Math.max(0, ev.next_at - now))}</>}
+    </div>
+  )
+}
+
+type NavItem = { to: string; label: string; icon: typeof Zap }
+
+/** Выпадающая группа пунктов навигации (на десктопе, чтобы шапка не переполнялась). */
+function NavGroup({ label, icon: Icon, items }: { label: string; icon: typeof Zap; items: NavItem[] }) {
+  const [open, setOpen] = useState(false)
+  const loc = useLocation()
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    setOpen(false)
+  }, [loc.pathname])
+  useEffect(() => {
+    if (!open) return
+    const h = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false)
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
+  const active = items.some((i) => loc.pathname.startsWith(i.to))
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} data-testid={'nav-' + label}
+        className={cx('flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold transition-colors duration-300', active || open ? 'bg-white/12 text-white' : 'text-mute hover:text-white')}>
+        <Icon size={15} />{label}<span className="text-[10px] opacity-60">▾</span>
+      </button>
+      {open && (
+        <div className="absolute left-0 top-12 z-40 min-w-48 rounded-2xl border border-white/10 bg-[#0b1220]/95 p-1.5 shadow-2xl backdrop-blur-xl">
+          {items.map((n) => (
+            <NavLink key={n.to} to={n.to} onClick={() => sfx('click')}
+              className={({ isActive }) => cx('flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold', isActive ? 'bg-white/12 text-white' : 'text-mute hover:bg-white/8 hover:text-white')}>
+              <n.icon size={15} />{n.label}
+            </NavLink>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -81,7 +122,7 @@ function Header() {
           className="pointer-events-auto flex h-14 items-center gap-1 rounded-2xl border border-white/10 bg-[#0b1220]/70 py-2 pl-3 pr-2 shadow-[0_8px_32px_rgb(0_0_0/.45)] backdrop-blur-xl">
           <Logo />
           <nav className="ml-3 hidden items-center gap-0.5 lg:flex">
-            {NAV.map((n) => (
+            {NAV_TOP.map((n) => (
               <NavLink key={n.to} to={n.to} end={n.end} onClick={() => sfx('click')}
                 className={({ isActive }) => cx('relative flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold transition-colors duration-300', isActive ? 'text-white' : 'text-mute hover:text-white')}>
                 {({ isActive }) => (
@@ -93,6 +134,8 @@ function Header() {
                 )}
               </NavLink>
             ))}
+            <NavGroup label="Игры" icon={Coins} items={NAV_GAMES} />
+            <NavGroup label="Ещё" icon={Menu} items={NAV_MORE} />
           </nav>
         </motion.div>
         <motion.div initial={reduce ? false : { y: -24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.6, ease: EASE, delay: 0.08 }}
@@ -257,7 +300,7 @@ export function Chat() {
 function MoreSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const sound = useGame((s) => s.sound)
   const setG = useGame((s) => s.set)
-  const extra = [NAV[3], NAV[4], NAV[8], NAV[5], NAV[6], { to: '/bonus', label: 'Бонусы', icon: Gift }, { to: '/profile', label: 'Профиль', icon: User }, { to: '/fair', label: 'Честность', icon: ShieldCheck }, { to: '/credits', label: 'Авторы', icon: Award }]
+  const extra = [NAV[3], NAV[4], NAV[8], NAV[9], NAV[5], NAV[6], { to: '/bonus', label: 'Бонусы', icon: Gift }, { to: '/profile', label: 'Профиль', icon: User }, { to: '/fair', label: 'Честность', icon: ShieldCheck }, { to: '/credits', label: 'Авторы', icon: Award }]
   return (
     <AnimatePresence>
       {open && (
