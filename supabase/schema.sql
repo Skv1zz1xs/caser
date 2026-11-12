@@ -1541,6 +1541,8 @@ begin
   delete from public.counters where period like 'd:%' and period < 'd:' || to_char(now() - interval '21 days', 'YYYY-MM-DD');
   delete from public.battles where status <> 'open' and created_at < now() - interval '7 days';
   delete from public.coinflips where status <> 'open' and created_at < now() - interval '2 days';
+  delete from public.raids where status in ('done', 'cancelled') and created_at < now() - interval '2 days';
+  delete from public.crash_rounds where status = 'done' and created_at < now() - interval '1 day';
 end $$;
 
 -- =====================================================================================
@@ -1867,7 +1869,9 @@ begin
   for sh in select (x ->> 'pid')::uuid pid, (x ->> 'amount')::bigint amt from jsonb_array_elements(pays) x loop
     insert into public.pending_credits (profile_id, amount, available_at, reason) values (sh.pid, sh.amt, v_ends, 'raid');
     perform game.bump(sh.pid, jsonb_build_object('raids', 1, 'raid_won', sh.amt));
-    update public.profiles set xp = xp + ((game.cfg('pass') #>> '{xp,raid}')::int * game.xpm()) where id = sh.pid;
+    if coalesce((select amount from public.raid_shares where raid_id = r.id and profile_id = sh.pid), 0) * 10 >= r.target then
+      update public.profiles set xp = xp + ((game.cfg('pass') #>> '{xp,raid}')::int * game.xpm()) where id = sh.pid;
+    end if;
   end loop;
   if v_val >= r.target * 5 then
     perform game.add_chat(null, 'system', 'Рейд-кейс выбил предмет на ' || (v_val / 100) || ' монет — делим на всех участников');
