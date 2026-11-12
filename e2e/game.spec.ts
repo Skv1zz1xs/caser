@@ -60,6 +60,7 @@ test('вход, открытие кейса, продажа, инвентарь'
   await page.goto('/#/inventory')
   await expect(page.getByTestId('inv-grid')).toBeVisible()
   await expect(page.getByTestId('inv-summary')).toContainText('5 предметов')
+  if (await page.getByTestId('filters-toggle').isVisible()) await page.getByTestId('filters-toggle').click() // на телефоне фильтры свёрнуты
   await shot(page, '06-inventory')
   const before = await balance(page)
   await page.getByTestId('inv-grid').locator('.item-card').first().click()

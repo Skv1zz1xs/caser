@@ -56,6 +56,7 @@ export default function Inventory() {
   const [below, setBelow] = useState('')
   const [confirm, setConfirm] = useState<null | { title: string; n: number; sum: number; go: () => Promise<void> }>(null)
   const [busy, setBusy] = useState(false)
+  const [fo, setFo] = useState(false)
 
   const view = useMemo(() => {
     const s = q.trim().toLowerCase()
@@ -110,6 +111,8 @@ export default function Inventory() {
       </div>
 
       <Section className="!p-3 space-y-3">
+        <button onClick={() => setFo((x) => !x)} data-testid="filters-toggle" className="flex h-11 w-full items-center justify-between rounded-xl bg-white/6 px-3 text-sm font-bold sm:hidden">Фильтры и массовая продажа<span className="text-mute">{fo ? '▲' : '▼'}</span></button>
+        <div className={cx('space-y-3', !fo && 'hidden sm:block sm:space-y-3')}>
         <RarityFilter value={rarity} onChange={setRarity} counts={counts} />
         <div className="flex flex-wrap gap-2">
           <label className="relative min-w-40 flex-1">
@@ -137,6 +140,7 @@ export default function Inventory() {
           <Btn kind="danger" className="!min-h-10 ml-auto text-xs" disabled={!items.length} testId="sell-all" onClick={() => ask('Продать весь инвентарь', items.length, total, () => sellBelow(1e15))}>
             <Trash2 size={14} />Продать всё
           </Btn>
+        </div>
         </div>
       </Section>
 

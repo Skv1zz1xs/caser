@@ -195,6 +195,13 @@ export default function CasePage() {
         </div>
       </Section>
 
+      {stage === 'result' && drops.length > 0 && (
+        <div className="fixed inset-x-3 bottom-[88px] z-30 flex gap-2 sm:hidden" data-testid="sticky-cta">
+          <Btn kind="gold" className="h-12 flex-1" disabled={!canPay && !isFree} onClick={() => open()} busy={busy}>Открыть ещё</Btn>
+          <Btn kind="soft" className="h-12 flex-1 bg-panel/95" onClick={() => sell(drops.map((d) => d.id))}>Продать <Money v={total} short /></Btn>
+        </div>
+      )}
+
       <Section title="Что внутри" right={<span className="text-xs text-mute">{c.outcomes.length} вариантов · шансы честные, как на сервере</span>}>
         <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-mute">
           <span>Износ меняет цену на ±20 %</span>
