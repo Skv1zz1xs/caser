@@ -1,12 +1,13 @@
 -- СГЕНЕРИРОВАНО: npm run gen:sql. Не редактируй руками — меняй src/config/economy.ts и перегенерируй.
--- Версия конфига: efd36514e09addf1
+-- Версия конфига: edbcc815a719ae4a
 begin;
 delete from public.cfg_outcomes; delete from public.cfg_cases; delete from public.cfg_kv;
-insert into public.cfg_kv(key, value) values ('version', '"efd36514e09addf1"'::jsonb);
+insert into public.cfg_kv(key, value) values ('version', '"edbcc815a719ae4a"'::jsonb);
 insert into public.cfg_kv(key, value) values ('wear_max', '[1000,2500,5500,8000,10000]'::jsonb);
 insert into public.cfg_kv(key, value) values ('num', '{"wear_a":120000,"wear_b":4,"fi_range":10000,"st_limit":1000,"st_pm":1500,"up_edge":950000,"up_min":10000,"up_max":750000,"up_max_items":10,"open_max":10,"inv_limit":3000,"chat_len":200,"nick_min":2,"nick_max":16,"pin_min":6,"avatars":24,"tz_hours":3}'::jsonb);
 insert into public.cfg_kv(key, value) values ('contract', '{"min":3,"max":10,"buckets":[{"cum":550000,"from":400,"to":800},{"cum":850000,"from":800,"to":1200},{"cum":960000,"from":1200,"to":1900},{"cum":1000000,"from":1900,"to":3400}],"min_pm":400,"max_pm":3400}'::jsonb);
 insert into public.cfg_kv(key, value) values ('battle', '{"max_rounds":10,"countdown_ms":3000,"round_ms":6000,"end_ms":3500,"bots":["Бот Валера","Бот Гена","Бот Жорик","Бот Люся","Бот Толик","Бот Зина","Бот Аркадий","Бот Нюра"],"formats":{"1v1":[0,1],"1v1v1":[0,1,2],"2v2":[0,0,1,1],"1v1v1v1":[0,1,2,3]},"modes":["classic","crazy","terminal","shared","jackpot"]}'::jsonb);
+insert into public.cfg_kv(key, value) values ('album', '{"reward_mult":2}'::jsonb);
 insert into public.cfg_kv(key, value) values ('raid', '{"min_case":30000,"open_max":3,"min_share":100,"roll_ms":7000,"end_ms":3000}'::jsonb);
 insert into public.cfg_kv(key, value) values ('crash', '{"min":1000,"max":10000000,"edge":4,"growth":0.07,"bet_ms":8000,"pause_ms":4000,"max_auto":100000}'::jsonb);
 insert into public.cfg_kv(key, value) values ('coinflip', '{"min":1000,"max":1000000000,"rake_pct":4,"flip_ms":4500}'::jsonb);

@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Backpack, CloudRain, Coins, FileSignature, Gift, LayoutGrid, Menu, MessageCircle, Send, ShieldCheck, Swords, TrendingUp, Trophy, User,
-  Volume2, VolumeX, X, Award, TriangleAlert, Zap, Rocket, Users,
+  Volume2, VolumeX, X, Award, TriangleAlert, Zap, Rocket, Users, Gem,
 } from 'lucide-react'
 import { BONUS } from '../config/economy'
 import { CATALOG } from '../shared/catalog'
@@ -27,7 +27,7 @@ const NAV = [
 ]
 const NAV_TOP = [NAV[0], NAV[1], NAV[2], NAV[3], NAV[7]]
 const NAV_GAMES = [NAV[4], NAV[8], NAV[9]]
-const NAV_MORE = [NAV[5], NAV[6], { to: '/bonus', label: 'Бонусы', icon: Gift }, { to: '/fair', label: 'Честность', icon: ShieldCheck }, { to: '/credits', label: 'Авторы моделей', icon: Award }]
+const NAV_MORE = [NAV[5], NAV[6], { to: '/album', label: 'Альбом скинов', icon: Gem }, { to: '/bonus', label: 'Бонусы', icon: Gift }, { to: '/fair', label: 'Честность', icon: ShieldCheck }, { to: '/credits', label: 'Авторы моделей', icon: Award }]
 const MOBILE = [NAV[0], NAV[1], NAV[2], NAV[7]]
 
 function Logo() {
@@ -300,7 +300,7 @@ export function Chat() {
 function MoreSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const sound = useGame((s) => s.sound)
   const setG = useGame((s) => s.set)
-  const extra = [NAV[3], NAV[4], NAV[8], NAV[9], NAV[5], NAV[6], { to: '/bonus', label: 'Бонусы', icon: Gift }, { to: '/profile', label: 'Профиль', icon: User }, { to: '/fair', label: 'Честность', icon: ShieldCheck }, { to: '/credits', label: 'Авторы', icon: Award }]
+  const extra = [NAV[3], NAV[4], NAV[8], NAV[9], NAV[5], NAV[6], { to: '/album', label: 'Альбом', icon: Gem }, { to: '/bonus', label: 'Бонусы', icon: Gift }, { to: '/profile', label: 'Профиль', icon: User }, { to: '/fair', label: 'Честность', icon: ShieldCheck }, { to: '/credits', label: 'Авторы', icon: Award }]
   return (
     <AnimatePresence>
       {open && (

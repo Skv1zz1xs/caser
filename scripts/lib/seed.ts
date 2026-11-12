@@ -3,7 +3,7 @@
  * Используется: npm run gen:sql (пишет supabase/seed.sql), dev-стек и тесты БД.
  */
 import {
-  ACHIEVEMENTS, BATTLE, BATTLE_FORMATS, BATTLE_MODES, BONUS, COIN, COINFLIP, CONTRACT, CRASH, RAID, LIMITS, PASS, PROMO_CODES, QUESTS, UPGRADE, WEAR,
+  ACHIEVEMENTS, BATTLE, BATTLE_FORMATS, BATTLE_MODES, BONUS, COIN, COINFLIP, CONTRACT, CRASH, RAID, ALBUM, LIMITS, PASS, PROMO_CODES, QUESTS, UPGRADE, WEAR,
 } from '../../src/config/economy'
 import { CATALOG } from '../../src/shared/catalog'
 import { FI_RANGE, ST_LIMIT, ST_MULT_PM, WEAR_A, WEAR_B, instancePrice } from '../../src/shared/money'
@@ -36,6 +36,7 @@ export function buildConfig(): Record<string, unknown> {
       max_rounds: BATTLE.maxRounds, countdown_ms: BATTLE.countdownMs, round_ms: BATTLE.roundMs, end_ms: BATTLE.endMs, bots: BATTLE.botNames,
       formats: Object.fromEntries(BATTLE_FORMATS.map((f) => [f.id, f.teams])), modes: BATTLE_MODES.map((m) => m.id),
     },
+    album: { reward_mult: ALBUM.rewardMult },
     raid: { min_case: kop(RAID.minCase), open_max: RAID.openMax, min_share: kop(RAID.minShare), roll_ms: RAID.rollMs, end_ms: RAID.endMs },
     crash: { min: kop(CRASH.minBet), max: kop(CRASH.maxBet), edge: CRASH.edgePct, growth: CRASH.growthPerSec, bet_ms: CRASH.betMs, pause_ms: CRASH.pauseMs, max_auto: Math.round(CRASH.maxAuto * 1000) },
     coinflip: { min: kop(COINFLIP.minStake), max: kop(COINFLIP.maxStake), rake_pct: COINFLIP.rakePct, flip_ms: COINFLIP.flipMs },

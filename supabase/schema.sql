@@ -26,7 +26,7 @@ begin
          'login','logout','sync','get_inventory','open_case','sell_items','sell_below','chat_send',
          'fair_state','fair_rotate','fair_set_client_seed','fair_rolls','leaderboard','get_profile','set_avatar',
          'upgrade','contract','battle_create','battle_join','battle_add_bot','battle_leave','get_battle',
-         'coinflip_create','coinflip_join','coinflip_bot','coinflip_cancel','crash_state','crash_bet','crash_cashout','raid_create','raid_contribute','raid_leave','raid_cancel','raid_list','get_raid',
+         'coinflip_create','coinflip_join','coinflip_bot','coinflip_cancel','crash_state','crash_bet','crash_cashout','raid_create','raid_contribute','raid_leave','raid_cancel','raid_list','get_raid','collection_get','collection_claim',
          'claim','bonus_free_case','bonus_daily','bonus_second_chance','promo_redeem','rain_join']))
   loop
     execute 'drop function if exists ' || r.sig || ' cascade';
@@ -192,6 +192,13 @@ create table if not exists public.raid_shares (
   primary key (raid_id, profile_id)
 );
 
+create table if not exists public.collection (
+  profile_id  uuid not null references public.profiles (id) on delete cascade,
+  item_id     text not null,
+  first_at    timestamptz not null default now(),
+  primary key (profile_id, item_id)
+);
+
 create table if not exists public.seeds (
   id           bigint generated always as identity primary key,
   profile_id   uuid references public.profiles (id) on delete cascade,  -- null у сидов батлов и коинфлипов
@@ -328,7 +335,7 @@ create index if not exists cfg_outcomes_pool_idx on public.cfg_outcomes (rarity,
 do $$
 declare t text;
 begin
-  foreach t in array array['profiles','feed','chat','battles','coinflips','rain','sessions','auth_profiles','crash_rounds','crash_bets','raids','raid_shares','seeds','secrets','rolls','items',
+  foreach t in array array['profiles','feed','chat','battles','coinflips','rain','sessions','auth_profiles','crash_rounds','crash_bets','raids','raid_shares','collection','seeds','secrets','rolls','items',
                            'battle_results','pending_credits','counters','claims','recipe_uses','rain_joins',
                            'cfg_kv','cfg_cases','cfg_outcomes']
   loop
@@ -1798,8 +1805,8 @@ create function public.crash_cashout() returns jsonb
 language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
 declare v_pid uuid := game.pid(); r public.crash_rounds; b public.crash_bets; v_m int; v_pay bigint;
 begin
-  perform game.lock(v_pid);
   perform game.crash_tick();
+  perform game.lock(v_pid);
   select * into r from crash_rounds order by id desc limit 1;
   select * into b from crash_bets where round_id = r.id and profile_id = v_pid for update;
   if not found then raise exception 'У тебя нет ставки в этом раунде'; end if;
@@ -1889,7 +1896,7 @@ begin
   select * into r from raids where id = p_id for update;
   if not found then raise exception 'Рейд не найден'; end if;
   if r.status <> 'open' then raise exception 'Рейд уже закончился или отменён'; end if;
-  if p_amount is null or p_amount < (cfg ->> 'min_share')::bigint then raise exception 'Минимальный вклад — % монет', (cfg ->> 'min_share')::bigint / 100; end if;
+  if cfg is null or p_amount is null or p_amount <= 0 or p_amount < (cfg ->> 'min_share')::bigint then raise exception 'Минимальный вклад — % монет', coalesce((cfg ->> 'min_share')::bigint, 100) / 100; end if;
   v_take := least(p_amount, r.target - r.pot);
   p := game.lock(v_pid);
   if p.balance < v_take then raise exception 'Недостаточно монет'; end if;
@@ -1960,6 +1967,47 @@ begin
                 order by created_at desc limit 20) x);
 end $$;
 
+
+-- =====================================================================================
+--  АЛЬБОМ СКИНОВ: всё, что когда-либо оказывалось в инвентаре (даже проданное). Заполняет триггер.
+-- =====================================================================================
+create function game.collection_note() returns trigger language plpgsql as $$
+begin
+  insert into public.collection (profile_id, item_id) values (new.owner, new.item_id) on conflict do nothing;
+  return new;
+end $$;
+drop trigger if exists collection_note on public.items;
+create trigger collection_note after insert on public.items for each row execute function game.collection_note();
+insert into public.collection (profile_id, item_id) select distinct owner, item_id from public.items on conflict do nothing;
+
+create function public.collection_get() returns jsonb
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
+declare v_pid uuid := game.pid();
+begin
+  return jsonb_build_object(
+    'items', (select coalesce(jsonb_agg(item_id), '[]'::jsonb) from collection where profile_id = v_pid),
+    'claimed', (select coalesce(jsonb_agg(ref), '[]'::jsonb) from claims where profile_id = v_pid and kind = 'album'));
+end $$;
+
+-- Закрытый кейс: собраны все предметы кейса (в любой фазе и с любым износом). Награда выдаётся один раз.
+create function public.collection_claim(p_case text) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, public, game, pg_temp as $$
+declare v_pid uuid := game.pid(); c public.cfg_cases; v_need int; v_have int; v_reward bigint;
+begin
+  select * into c from cfg_cases where case_id = p_case;
+  if not found or c.profile = 'free' then raise exception 'Нет такого кейса'; end if;
+  select count(distinct item_id) into v_need from cfg_outcomes where case_id = p_case;
+  select count(distinct o.item_id) into v_have from cfg_outcomes o join collection k on k.item_id = o.item_id and k.profile_id = v_pid where o.case_id = p_case;
+  if v_have < v_need then raise exception 'Собрано % из % предметов', v_have, v_need; end if;
+  perform game.lock(v_pid);
+  insert into claims (profile_id, kind, ref) values (v_pid, 'album', p_case) on conflict do nothing;
+  if not found then raise exception 'Награда за этот кейс уже получена'; end if;
+  v_reward := c.price * (game.cfg('album') ->> 'reward_mult')::bigint;
+  update profiles set balance = balance + v_reward where id = v_pid;
+  perform game.bump(v_pid, jsonb_build_object('albums', 1));
+  return jsonb_build_object('reward', v_reward, 'me', game.after(v_pid));
+end $$;
+
 -- =====================================================================================
 --  ДОСТУП К ФУНКЦИЯМ: только вошедшим (authenticated), анонимной роли — ничего
 -- =====================================================================================
@@ -1973,7 +2021,7 @@ begin
       'login','logout','sync','get_inventory','open_case','sell_items','sell_below','chat_send',
       'fair_state','fair_rotate','fair_set_client_seed','fair_rolls','leaderboard','get_profile','set_avatar',
       'upgrade','contract','battle_create','battle_join','battle_add_bot','battle_leave','get_battle',
-      'coinflip_create','coinflip_join','coinflip_bot','coinflip_cancel','crash_state','crash_bet','crash_cashout','raid_create','raid_contribute','raid_leave','raid_cancel','raid_list','get_raid',
+      'coinflip_create','coinflip_join','coinflip_bot','coinflip_cancel','crash_state','crash_bet','crash_cashout','raid_create','raid_contribute','raid_leave','raid_cancel','raid_list','get_raid','collection_get','collection_claim',
       'claim','bonus_free_case','bonus_daily','bonus_second_chance','promo_redeem','rain_join'])
   loop
     execute 'revoke all on function ' || r.sig || ' from public, anon';
